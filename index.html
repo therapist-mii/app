@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mystical Reels Creator Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&display=swap');
+
+        :root {
+            --bg-image: url('https://github.com/therapist-mii/spiritual/raw/main/images/buroguhaikei-sumaho.jpg');
+        }
+
+        body {
+            background-color: #0f0f12;
+            color: #f0f0f0;
+            font-family: 'Shippori+Mincho', serif;
+        }
+
+        /* プレビューエリア（Instagramリール 9:16） */
+        #preview-container {
+            width: 360px;
+            height: 640px;
+            position: relative;
+            overflow: hidden;
+            background-image: var(--bg-image);
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            border-radius: 12px;
+        }
+
+        /* 文字が出現するアニメーション */
+        .mystic-text {
+            position: absolute;
+            width: 100%;
+            left: 0;
+            padding: 0 2.5rem;
+            box-sizing: border-box;
+            color: white;
+            text-shadow: 
+                0 0 10px rgba(0,0,0,0.5),
+                0 0 15px rgba(255,255,255,0.3);
+            opacity: 0;
+            transform: translateY(40px);
+            filter: blur(10px);
+            transition-property: opacity, transform, filter;
+            transition-timing-function: ease-out;
+            word-break: break-all;
+        }
+
+        .mystic-text.active {
+            opacity: 1;
+            transform: translateY(0);
+            filter: blur(0px);
+        }
+
+        .mystic-text.fade-out {
+            opacity: 0;
+            transform: translateY(-60px);
+            filter: blur(5px);
+        }
+
+        /* カスタムスクロールバー */
+        .config-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        .config-panel::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+        }
+
+        .recording-pulse {
+            width: 12px;
+            height: 12px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row min-h-screen p-4 lg:p-8 gap-8 items-center justify-center">
+
+    <!-- 設定パネル -->
+    <div class="w-full max-w-md bg-white/5 p-6 rounded-3xl backdrop-blur-xl border border-white/10 flex flex-col h-[85vh] lg:h-auto overflow-hidden">
+        <h1 class="text-xl font-bold mb-4 flex items-center gap-2 shrink-0">
+            ✨ 動画設定
+        </h1>
+        
+        <div class="config-panel overflow-y-auto pr-2 space-y-6 flex-grow">
+            <!-- テキスト入力 -->
+            <div>
+                <label class="block text-sm font-medium mb-2 text-gray-300">文章 (改行で1枚ずつ表示)</label>
+                <textarea id="text-input" class="w-full bg-black/40 border border-white/20 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 h-32" placeholder="心に響く言葉を..."></textarea>
+            </div>
+
+            <!-- 文字揃え -->
+            <div>
+                <label class="block text-sm font-medium mb-2 text-gray-300">文字の揃え方向</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="setTextAlign('left')" class="align-btn py-2 bg-white/10 rounded-lg text-xs hover:bg-white/20 transition-colors border border-transparent" id="align-left">左揃え</button>
+                    <button onclick="setTextAlign('center')" class="align-btn py-2 bg-white/20 rounded-lg text-xs hover:bg-white/30 transition-colors border border-white/40" id="align-center">中央</button>
+                    <button onclick="setTextAlign('right')" class="align-btn py-2 bg-white/10 rounded-lg text-xs hover:bg-white/20 transition-colors border border-transparent" id="align-right">右揃え</button>
+                </div>
+            </div>
+
+            <!-- サイズ設定 -->
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>文字サイズ</span>
+                        <span id="size-val">22px</span>
+                    </div>
+                    <input type="range" id="size-input" min="14" max="40" value="22" class="w-full accent-purple-500">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>行の間隔</span>
+                        <span id="lineheight-val">1.6</span>
+                    </div>
+                    <input type="range" id="lineheight-input" min="1.0" max="2.5" step="0.1" value="1.6" class="w-full accent-purple-500">
+                </div>
+            </div>
+
+            <!-- スピード設定 -->
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>表示時間 (秒/枚)</span>
+                        <span id="interval-val">4.5s</span>
+                    </div>
+                    <input type="range" id="interval-input" min="1.5" max="10" step="0.5" value="4.5" class="w-full accent-blue-500">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>アニメーション速度 (秒)</span>
+                        <span id="speed-val">2.5s</span>
+                    </div>
+                    <input type="range" id="speed-input" min="0.5" max="5" step="0.1" value="2.5" class="w-full accent-blue-500">
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 flex flex-col gap-3 shrink-0">
+            <div class="grid grid-cols-2 gap-3">
+                <button id="play-btn" class="py-3 bg-white/10 rounded-2xl font-bold hover:bg-white/20 transition-all border border-white/20">
+                    再生テスト
+                </button>
+                <button id="stop-btn" class="py-3 bg-white/5 rounded-2xl font-bold hover:bg-red-900/20 hover:text-red-400 transition-all border border-white/10">
+                    停止
+                </button>
+            </div>
+            <button id="record-btn" class="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl font-bold hover:scale-[1.02] transition-all flex items-center justify-center shadow-lg shadow-purple-500/20">
+                <span id="record-status" class="flex items-center">動画を録画して保存</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- プレビュー -->
+    <div class="relative shrink-0 scale-90 md:scale-100">
+        <div id="preview-container">
+            <div id="text-stage" class="absolute inset-0 flex items-center justify-center">
+                <!-- ここにテキストが出現 -->
+            </div>
+        </div>
+        <div class="text-center mt-4 text-gray-500 text-sm tracking-widest">PREVIEW 9:16</div>
+    </div>
+
+    <script>
+        const textInput = document.getElementById('text-input');
+        const playBtn = document.getElementById('play-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const recordBtn = document.getElementById('record-btn');
+        const textStage = document.getElementById('text-stage');
+        const intervalInput = document.getElementById('interval-input');
+        const sizeInput = document.getElementById('size-input');
+        const speedInput = document.getElementById('speed-input');
+        const lineheightInput = document.getElementById('lineheight-input');
+        const previewContainer = document.getElementById('preview-container');
+        const recordStatus = document.getElementById('record-status');
+
+        let isPlaying = false;
+        let isRecording = false;
+        let stopRequested = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let currentAlign = 'center';
+
+        // 数値表示の更新
+        const updateVal = (id, val, unit = '') => document.getElementById(id).innerText = val + unit;
+        sizeInput.oninput = (e) => updateVal('size-val', e.target.value, 'px');
+        intervalInput.oninput = (e) => updateVal('interval-val', e.target.value, 's');
+        speedInput.oninput = (e) => updateVal('speed-val', e.target.value, 's');
+        lineheightInput.oninput = (e) => updateVal('lineheight-val', e.target.value);
+
+        function setTextAlign(align) {
+            currentAlign = align;
+            document.querySelectorAll('.align-btn').forEach(btn => {
+                btn.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                btn.style.borderColor = 'transparent';
+            });
+            const activeBtn = document.getElementById('align-' + align);
+            activeBtn.style.backgroundColor = 'rgba(255,255,255,0.2)';
+            activeBtn.style.borderColor = 'rgba(255,255,255,0.4)';
+        }
+
+        function stopAll() {
+            stopRequested = true;
+            isPlaying = false;
+            textStage.innerHTML = '';
+            if (isRecording) {
+                stopRecording();
+            }
+        }
+
+        async function startAnimation() {
+            if (isPlaying) return;
+            isPlaying = true;
+            stopRequested = false;
+            textStage.innerHTML = '';
+            
+            const lines = textInput.value.split('\n').filter(line => line.trim() !== '');
+            if (lines.length === 0) {
+                isPlaying = false;
+                return;
+            }
+
+            const interval = parseFloat(intervalInput.value) * 1000;
+            const animSpeed = parseFloat(speedInput.value);
+            const fontSize = sizeInput.value + 'px';
+            const lineHeight = lineheightInput.value;
+
+            for (let i = 0; i < lines.length; i++) {
+                if (stopRequested) break;
+
+                const el = document.createElement('div');
+                el.className = 'mystic-text';
+                el.innerText = lines[i];
+                el.style.fontSize = fontSize;
+                el.style.lineHeight = lineHeight;
+                el.style.textAlign = currentAlign;
+                el.style.transitionDuration = `${animSpeed}s`;
+                
+                textStage.appendChild(el);
+
+                // 出現
+                setTimeout(() => {
+                    if (!stopRequested) el.classList.add('active');
+                }, 50);
+
+                // 待機
+                await new Promise(resolve => {
+                    const checkStop = setInterval(() => {
+                        if (stopRequested) {
+                            clearInterval(checkStop);
+                            resolve();
+                        }
+                    }, 100);
+                    setTimeout(() => {
+                        clearInterval(checkStop);
+                        resolve();
+                    }, interval);
+                });
+                
+                if (stopRequested) break;
+
+                // 消去
+                el.classList.add('fade-out');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            isPlaying = false;
+            if (isRecording && !stopRequested) {
+                setTimeout(stopRecording, 1500);
+            }
+            stopRequested = false;
+        }
+
+        async function startRecording() {
+            if (isPlaying) stopAll();
+            await new Promise(r => setTimeout(r, 300));
+
+            recordedChunks = [];
+            const stream = previewContainer.captureStream(30); 
+            
+            const mimeType = MediaRecorder.isTypeSupported('video/mp4') 
+                             ? 'video/mp4' 
+                             : 'video/webm;codecs=vp9';
+            
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                if (recordedChunks.length > 0) {
+                    const blob = new Blob(recordedChunks, { type: mimeType });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                    a.href = url;
+                    a.download = `mystical_reel_${Date.now()}.${ext}`;
+                    a.click();
+                }
+                
+                recordStatus.innerHTML = '動画を録画して保存';
+                recordBtn.disabled = false;
+                isRecording = false;
+            };
+
+            isRecording = true;
+            recordBtn.disabled = true;
+            recordStatus.innerHTML = '<span class="recording-pulse"></span> 録画中...';
+            
+            mediaRecorder.start();
+            startAnimation();
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        playBtn.addEventListener('click', () => {
+            if (isPlaying) stopAll();
+            setTimeout(startAnimation, 100);
+        });
+
+        stopBtn.addEventListener('click', stopAll);
+
+        recordBtn.addEventListener('click', startRecording);
+    </script>
+</body>
+</html>
