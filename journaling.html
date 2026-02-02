@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FocusLane</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --text: #333;
+            --accent-a: #4dabf7;
+            --accent-b: #51cf66;
+            --card-bg: #ffffff;
+            --border: #dee2e6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding-bottom: 80px;
+            line-height: 1.6;
+            overflow-x: hidden; /* 横スクロール防止 */
+        }
+
+        /* Fireworks Canvas */
+        #fireworks-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* クリックを透過 */
+            z-index: 9999;
+        }
+
+        /* Layout */
+        .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+        .hidden { display: none !important; }
+
+        /* Home View */
+        .input-area textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 16px;
+            margin-bottom: 12px;
+            resize: none;
+        }
+        .btn-group { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        button {
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        .btn-task { background: var(--accent-a); color: white; }
+        .btn-idea { background: #a5d8ff; color: #000; }
+        .btn-insight { background: var(--accent-b); color: white; }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: white;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            z-index: 100;
+        }
+        nav div { text-align: center; font-size: 10px; color: #888; cursor: pointer; }
+        nav div.active { color: var(--accent-a); font-weight: bold; }
+
+        /* A-Lane Style */
+        .item-card {
+            background: var(--card-bg);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 5px solid var(--accent-a);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .item-idea { border-left-color: #a5d8ff; }
+
+        /* Night Mode Overlay */
+        #night-mode-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; z-index: 200; padding: 20px; box-sizing: border-box;
+        }
+
+        /* Suggestion box */
+        #suggestion-box {
+            position: absolute; background: white; border: 1px solid var(--border);
+            width: 90%; max-height: 150px; overflow-y: auto; z-index: 10;
+        }
+        .suggestion-item { padding: 10px; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+    <!-- Canvas for Fireworks -->
+    <canvas id="fireworks-canvas"></canvas>
+
+    <div id="app" class="container">
+        <!-- HOME -->
+        <section id="view-home">
+            <div class="input-area">
+                <textarea id="main-input" placeholder="今、何を考えてる？"></textarea>
+                <div class="btn-group">
+                    <button class="btn-task" onclick="saveData('task', event)"><i data-lucide="check-square"></i> タスクとして保存</button>
+                    <button class="btn-idea" onclick="saveData('idea', event)"><i data-lucide="lightbulb"></i> アイディアとして保存</button>
+                    <button class="btn-insight" onclick="showInsightModal()"><i data-lucide="book-open"></i> 内観として保存</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- A-LANE -->
+        <section id="view-a" class="hidden">
+            <h2>Aレーン (行動)</h2>
+            <button onclick="startNightMode()" style="width:100%; margin-bottom:15px; background: #333; color:white;">
+                <i data-lucide="moon"></i> 夜の処理モードを開始
+            </button>
+            <div id="a-list"></div>
+        </section>
+
+        <!-- B-LANE -->
+        <section id="view-b" class="hidden">
+            <h2>Bレーン (内観)</h2>
+            <div id="b-list"></div>
+            <hr>
+            <button onclick="exportBData()"><i data-lucide="share-2"></i> AI分析用出力</button>
+            <button onclick="downloadBackup()" style="margin-top:10px; background:#eee; color:#333;">バックアップ(CSV)保存</button>
+        </section>
+    </div>
+
+    <!-- Night Mode Overlay -->
+    <div id="night-mode-overlay" class="hidden">
+        <h2 id="nm-count"></h2>
+        <div class="item-card" id="nm-target-card"></div>
+        <input type="text" id="nm-substep" placeholder="次の一手は？ (必須)" style="width:100%; padding:12px; margin: 10px 0;">
+        <div class="btn-group" style="grid-template-columns: 1fr 1fr;">
+            <button onclick="processNightItem('today')">今日</button>
+            <button onclick="processNightItem('tomorrow')">明日</button>
+            <button onclick="processNightItem('this_week')">今週</button>
+            <button onclick="processNightItem('pending')">保留</button>
+        </div>
+        <button onclick="closeNightMode()" style="margin-top:20px; background:none; color:red;">中断する</button>
+    </div>
+
+    <!-- Insight Entry Modal -->
+    <div id="insight-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:150; padding:20px; box-sizing:border-box;">
+        <h3>内観の記録</h3>
+        <input type="text" id="ins-title" placeholder="見出し (過去の候補が出ます)" style="width:100%; padding:10px;" oninput="handleTitleInput(this.value)">
+        <div id="suggestion-box" class="hidden"></div>
+        <textarea id="ins-content" placeholder="本文" style="width:100%; height:200px; margin-top:10px;"></textarea>
+        <input type="text" id="ins-emotion" placeholder="感情 (任意)" style="width:100%; padding:10px; margin-top:10px;">
+        <button class="btn-insight" onclick="saveInsight(event)" style="width:100%; margin-top:15px;">保存</button>
+        <button onclick="hideInsightModal()" style="width:100%; margin-top:10px; background:none;">戻る</button>
+    </div>
+
+    <nav>
+        <div onclick="switchView('home')" id="nav-home" class="active"><i data-lucide="edit-3"></i><div>Home</div></div>
+        <div onclick="switchView('a')" id="nav-a"><i data-lucide="list-todo"></i><div>Aレーン</div></div>
+        <div onclick="switchView('b')" id="nav-b"><i data-lucide="brain"></i><div>Bレーン</div></div>
+    </nav>
+
+    <script>
+        // --- Firework Effect System ---
+        const canvas = document.getElementById('fireworks-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function createParticles(x, y, count = 30) {
+            const colors = ['#ff4d4d', '#4dabf7', '#51cf66', '#fcc419', '#ff6b6b', '#845ef7'];
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 1.0,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: Math.random() * 4 + 2
+                });
+            }
+        }
+
+        function animateFireworks() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // Gravity
+                p.life -= 0.02;
+                p.size *= 0.95;
+
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    i--;
+                }
+            }
+            ctx.globalAlpha = 1.0;
+            requestAnimationFrame(animateFireworks);
+        }
+        animateFireworks();
+
+        function triggerExplosion(e) {
+            if (!e) return;
+            // クリック位置または要素の中心を取得
+            let x, y;
+            if (e.clientX && e.clientY) {
+                x = e.clientX;
+                y = e.clientY;
+            } else if (e.target) {
+                const rect = e.target.getBoundingClientRect();
+                x = rect.left + rect.width / 2;
+                y = rect.top + rect.height / 2;
+            } else {
+                x = window.innerWidth / 2;
+                y = window.innerHeight / 2;
+            }
+            createParticles(x, y, 40);
+        }
+
+        // --- Core Logic & Database ---
+        let db;
+        const dbRequest = indexedDB.open("FocusLaneDB", 1);
+        dbRequest.onupgradeneeded = (e) => {
+            db = e.target.result;
+            db.createObjectStore("actions", { keyPath: "id" });
+            db.createObjectStore("insights", { keyPath: "id" });
+        };
+        dbRequest.onsuccess = (e) => { db = e.target.result; renderALane(); renderBLane(); };
+
+        function switchView(view) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`view-${view}`).classList.remove('hidden');
+            document.querySelectorAll('nav div').forEach(d => d.classList.remove('active'));
+            document.getElementById(`nav-${view}`).classList.add('active');
+            lucide.createIcons();
+            if(view === 'a') renderALane();
+            if(view === 'b') renderBLane();
+        }
+
+        // --- A-Lane Logic ---
+        async function saveData(type, event) {
+            const content = document.getElementById('main-input').value;
+            if(!content) return;
+            
+            // 花火発火
+            triggerExplosion(event);
+
+            const item = {
+                id: crypto.randomUUID(),
+                type,
+                content,
+                subStep: "",
+                schedule: "unprocessed",
+                createdAt: Date.now()
+            };
+            const tx = db.transaction("actions", "readwrite");
+            tx.objectStore("actions").add(item);
+            document.getElementById('main-input').value = "";
+            // alertなしでスムーズに
+        }
+
+        async function renderALane() {
+            const list = document.getElementById('a-list');
+            list.innerHTML = "";
+            const tx = db.transaction("actions", "readonly");
+            const items = await new Promise(res => {
+                const req = tx.objectStore("actions").getAll();
+                req.onsuccess = () => res(req.result);
+            });
+
+            items.sort((a,b) => (a.type === 'task' ? -1 : 1));
+            
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = `item-card ${item.type === 'idea' ? 'item-idea' : ''}`;
+                div.innerHTML = `
+                    <div style="font-size:12px; opacity:0.6;">${item.type.toUpperCase()} - ${item.schedule}</div>
+                    <strong>${item.content}</strong>
+                    ${item.subStep ? `<div style="color:var(--accent-b); font-weight:bold;">↳ ${item.subStep}</div>` : ''}
+                    <div style="text-align:right; margin-top:5px;">
+                         <button onclick="deleteItem('actions', '${item.id}', event)" style="display:inline-flex; background:none; color:red; padding:5px; border:1px solid red; font-size:11px;">削除</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // --- Night Mode ---
+        let nightQueue = [];
+        async function startNightMode() {
+            const tx = db.transaction("actions", "readonly");
+            const items = await new Promise(res => {
+                const req = tx.objectStore("actions").getAll();
+                req.onsuccess = () => res(req.result.filter(i => i.schedule === 'unprocessed'));
+            });
+            if(items.length === 0) return alert("未処理のタスクはありません");
+            nightQueue = items;
+            showNextNightItem();
+            document.getElementById('night-mode-overlay').classList.remove('hidden');
+        }
+
+        function showNextNightItem() {
+            if(nightQueue.length === 0) {
+                closeNightMode();
+                renderALane();
+                return;
+            }
+            const item = nightQueue[0];
+            document.getElementById('nm-count').innerText = `残り ${nightQueue.length} 件`;
+            document.getElementById('nm-target-card').innerText = item.content;
+            document.getElementById('nm-substep').value = "";
+        }
+
+        async function processNightItem(schedule) {
+            const subStep = document.getElementById('nm-substep').value;
+            if(!subStep) return alert("次の一手を決めてください");
+            
+            const item = nightQueue.shift();
+            item.subStep = subStep;
+            item.schedule = schedule;
+
+            const tx = db.transaction("actions", "readwrite");
+            tx.objectStore("actions").put(item);
+            showNextNightItem();
+        }
+
+        function closeNightMode() { document.getElementById('night-mode-overlay').classList.add('hidden'); }
+
+        // --- B-Lane Logic ---
+        function showInsightModal() { 
+            const text = document.getElementById('main-input').value;
+            document.getElementById('ins-content').value = text;
+            document.getElementById('insight-modal').classList.remove('hidden'); 
+        }
+        function hideInsightModal() { document.getElementById('insight-modal').classList.add('hidden'); }
+
+        async function handleTitleInput(val) {
+            const box = document.getElementById('suggestion-box');
+            if(!val) { box.classList.add('hidden'); return; }
+            const tx = db.transaction("insights", "readonly");
+            const items = await new Promise(res => {
+                const req = tx.objectStore("insights").getAll();
+                req.onsuccess = () => res(req.result);
+            });
+            const titles = [...new Set(items.map(i => i.title))].filter(t => t.includes(val));
+            if(titles.length > 0) {
+                box.innerHTML = titles.map(t => `<div class="suggestion-item" onclick="selectTitle('${t}')">${t}</div>`).join('');
+                box.classList.remove('hidden');
+            } else { box.classList.add('hidden'); }
+        }
+
+        function selectTitle(t) {
+            document.getElementById('ins-title').value = t;
+            document.getElementById('suggestion-box').classList.add('hidden');
+        }
+
+        async function saveInsight(event) {
+            const title = document.getElementById('ins-title').value || "無題";
+            const content = document.getElementById('ins-content').value;
+            const emotion = document.getElementById('ins-emotion').value;
+            
+            // 花火発火
+            triggerExplosion(event);
+
+            const item = { id: crypto.randomUUID(), title, content, emotion, createdAt: Date.now() };
+            const tx = db.transaction("insights", "readwrite");
+            tx.objectStore("insights").add(item);
+            document.getElementById('main-input').value = "";
+            hideInsightModal();
+        }
+
+        async function renderBLane() {
+            const list = document.getElementById('b-list');
+            list.innerHTML = "";
+            const tx = db.transaction("insights", "readonly");
+            const items = await new Promise(res => {
+                const req = tx.objectStore("insights").getAll();
+                req.onsuccess = () => res(req.result);
+            });
+
+            const summary = items.reduce((acc, cur) => {
+                acc[cur.title] = (acc[cur.title] || []);
+                acc[cur.title].push(cur);
+                return acc;
+            }, {});
+
+            for (const title in summary) {
+                const div = document.createElement('div');
+                div.className = 'item-card';
+                div.style.borderLeftColor = 'var(--accent-b)';
+                div.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong>${title} (${summary[title].length}件)</strong>
+                        <button onclick="deleteGroup('${title}', event)" style="background:none; color:red; font-size:11px; border:1px solid red; padding:4px; border-radius:4px;">一括削除</button>
+                    </div>
+                `;
+                div.onclick = (e) => {
+                    // 削除ボタンクリック時は詳細表示しない
+                    if(e.target.tagName === 'BUTTON') return;
+                    alert(summary[title].map(i => `[${i.emotion || '-'}] ${i.content}`).join('\n---\n'));
+                };
+                list.appendChild(div);
+            }
+        }
+
+        async function deleteItem(store, id, event) {
+            if(!confirm("削除しますか？")) return;
+            
+            if(event) triggerExplosion(event);
+
+            const tx = db.transaction(store, "readwrite");
+            tx.objectStore(store).delete(id);
+            store === 'actions' ? renderALane() : renderBLane();
+        }
+
+        async function deleteGroup(title, event) {
+            // イベント伝播停止（詳細表示を防ぐ）
+            if(event) event.stopPropagation();
+            
+            if(!confirm(`「${title}」の全ログを削除しますか？`)) return;
+            
+            if(event) triggerExplosion(event);
+
+            const tx = db.transaction("insights", "readwrite");
+            const store = tx.objectStore("insights");
+            const items = await new Promise(res => {
+                const req = store.getAll();
+                req.onsuccess = () => res(req.result);
+            });
+            items.filter(i => i.title === title).forEach(i => store.delete(i.id));
+            renderBLane();
+        }
+
+        async function exportBData() {
+            const tx = db.transaction("insights", "readonly");
+            const items = await new Promise(res => {
+                const req = tx.objectStore("insights").getAll();
+                req.onsuccess = () => res(req.result);
+            });
+            let text = `期間: 全期間\n総件数: ${items.length}\n---\n`;
+            items.forEach(i => {
+                text += `[${i.id.slice(0,8)}]\n日付: ${new Date(i.createdAt).toLocaleString()}\n見出し: ${i.title}\n感情: ${i.emotion}\n本文: ${i.content}\n---\n`;
+            });
+            navigator.clipboard.writeText(text);
+            alert("クリップボードにコピーしました");
+        }
+
+        async function downloadBackup() {
+            const actions = await new Promise(res => {
+                const req = db.transaction("actions", "readonly").objectStore("actions").getAll();
+                req.onsuccess = () => res(req.result);
+            });
+            const insights = await new Promise(res => {
+                const req = db.transaction("insights", "readonly").objectStore("insights").getAll();
+                req.onsuccess = () => res(req.result);
+            });
+            const data = JSON.stringify({ actions, insights });
+            const blob = new Blob([data], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `focus_lane_backup_${Date.now()}.json`;
+            a.click();
+        }
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
