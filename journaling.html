@@ -9,10 +9,13 @@
         :root {
             --bg: #f8f9fa;
             --text: #333;
-            --accent-a: #4dabf7;
-            --accent-b: #51cf66;
+            --accent-a: #4dabf7; /* Task blue */
+            --accent-b: #51cf66; /* Insight green */
+            --sky-top: #89f7fe;  /* Sky gradient top */
+            --sky-btm: #66a6ff;  /* Sky gradient bottom */
             --card-bg: #ffffff;
             --border: #dee2e6;
+            --exp-bar: #ffd43b;
         }
 
         body {
@@ -22,23 +25,60 @@
             margin: 0;
             padding-bottom: 80px;
             line-height: 1.6;
-            overflow-x: hidden; /* 横スクロール防止 */
+            overflow-x: hidden;
         }
 
-        /* Fireworks Canvas */
-        #fireworks-canvas {
+        /* Canvas */
+        #fx-canvas {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none; /* クリックを透過 */
+            pointer-events: none;
             z-index: 9999;
         }
 
         /* Layout */
         .container { padding: 16px; max-width: 600px; margin: 0 auto; }
         .hidden { display: none !important; }
+
+        /* Level & EXP Bar */
+        #level-area {
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            z-index: 5;
+        }
+        .level-badge {
+            background: var(--accent-a); color: white;
+            font-weight: bold; padding: 4px 8px; border-radius: 6px;
+            font-size: 14px; white-space: nowrap;
+        }
+        .exp-container { flex-grow: 1; }
+        .exp-bar-bg { background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
+        .exp-bar-fill { background: var(--exp-bar); height: 100%; width: 0%; transition: width 0.5s ease-out; }
+
+        /* Cheering Message */
+        #cheer-msg {
+            text-align: center;
+            font-weight: bold;
+            color: var(--accent-b);
+            margin-bottom: 10px;
+            min-height: 24px;
+            font-size: 14px;
+            animation: fadeIn 1s;
+            position: relative;
+            z-index: 5;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
         /* Home View */
         .input-area textarea {
@@ -66,7 +106,7 @@
             gap: 8px;
             transition: transform 0.1s;
         }
-        button:active { transform: scale(0.98); }
+        button:active { transform: scale(0.95); }
         .btn-task { background: var(--accent-a); color: white; }
         .btn-idea { background: #a5d8ff; color: #000; }
         .btn-insight { background: var(--accent-b); color: white; }
@@ -102,10 +142,125 @@
         }
         .item-idea { border-left-color: #a5d8ff; }
 
+        /* --- CLOUD / SKY DESIGN (B-Lane) --- */
+        #view-b {
+            min-height: 80vh; /* Fill screen mostly */
+        }
+        .sky-container {
+            /* グラデーション背景はJSでbodyに適用するか、ここで固定配置 */
+            padding-bottom: 20px;
+        }
+
+        .cloud-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        .cloud-card {
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 24px;
+            padding: 20px;
+            width: 100%; /* Default mobile width */
+            box-shadow: 0 8px 20px rgba(100, 149, 237, 0.2); /* Soft blue shadow */
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            animation: float 6s ease-in-out infinite;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.2s;
+        }
+        /* Make them look a bit randomized in width if needed, but uniform is cleaner. 
+           Let's vary animation delay */
+        .cloud-card:nth-child(even) { animation-delay: 1.5s; width: 90%; margin-left: auto; }
+        .cloud-card:nth-child(odd) { animation-delay: 0s; width: 95%; margin-right: auto; }
+        
+        .cloud-card:active { transform: scale(0.98); }
+
+        .cloud-title {
+            font-size: 18px; font-weight: bold; color: #4dabf7;
+            margin-bottom: 8px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .cloud-preview {
+            font-size: 13px; color: #666;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+            line-height: 1.5;
+        }
+        .cloud-meta {
+            margin-top: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; color: #999;
+        }
+        .cloud-badge {
+            background: #e7f5ff; color: #228be6; padding: 2px 8px; border-radius: 10px; font-weight: bold;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Read Modal (Sky Style) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #f8f9fa; z-index: 200; display: flex; flex-direction: column;
+        }
+        
+        /* Sky Background for Modal */
+        .sky-bg-modal {
+            background: linear-gradient(180deg, #d4fc79 0%, #96e6a1 100%); /* Fresh Green/Blue or Sky */
+            background: linear-gradient(to bottom, #a1c4fd 0%, #c2e9fb 100%); /* Sky Blue */
+        }
+        
+        .modal-header {
+            padding: 12px 16px; 
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .modal-content {
+            flex-grow: 1; overflow-y: auto; padding: 20px;
+            -webkit-overflow-scrolling: touch;
+            display: flex; flex-direction: column; gap: 24px;
+        }
+
+        /* Simple floating thoughts in modal */
+        .thought-bubble {
+            background: rgba(255, 255, 255, 0.85);
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            position: relative;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .thought-bubble::after { /* Cloud puff decoration */
+            content: ''; position: absolute;
+            width: 20px; height: 20px; background: inherit;
+            border-radius: 50%; bottom: -8px; left: 20px;
+        }
+
+        .thought-meta {
+            font-size: 11px; color: #888; margin-bottom: 6px;
+            display: flex; justify-content: space-between;
+        }
+        .thought-body {
+            font-size: 15px; color: #444; white-space: pre-wrap;
+        }
+
         /* Night Mode Overlay */
         #night-mode-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: white; z-index: 200; padding: 20px; box-sizing: border-box;
+            background: white; z-index: 300; padding: 20px; box-sizing: border-box;
         }
 
         /* Suggestion box */
@@ -118,10 +273,24 @@
 </head>
 <body>
 
-    <!-- Canvas for Fireworks -->
-    <canvas id="fireworks-canvas"></canvas>
+    <canvas id="fx-canvas"></canvas>
 
     <div id="app" class="container">
+        <!-- Level Info (Visible on Home) -->
+        <div id="level-area">
+            <div class="level-badge" id="lvl-badge">Lv.1</div>
+            <div class="exp-container">
+                <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px;">
+                    <span id="lvl-title">思考の旅人</span>
+                    <span id="exp-text">0 / 100</span>
+                </div>
+                <div class="exp-bar-bg"><div class="exp-bar-fill" id="exp-fill"></div></div>
+            </div>
+        </div>
+
+        <!-- Cheering Message -->
+        <div id="cheer-msg"></div>
+
         <!-- HOME -->
         <section id="view-home">
             <div class="input-area">
@@ -143,21 +312,37 @@
             <div id="a-list"></div>
         </section>
 
-        <!-- B-LANE -->
+        <!-- B-LANE (Cloud View) -->
         <section id="view-b" class="hidden">
-            <h2>Bレーン (内観)</h2>
-            <div id="b-list"></div>
-            <hr>
-            <button onclick="exportBData()"><i data-lucide="share-2"></i> AI分析用出力</button>
-            <button onclick="downloadBackup()" style="margin-top:10px; background:#eee; color:#333;">バックアップ(CSV)保存</button>
+            <h2 style="color:white; text-shadow:0 1px 3px rgba(0,0,0,0.2); text-align:center; margin-bottom:4px;">思考の空</h2>
+            <div style="text-align:center; color:white; font-size:12px; margin-bottom:16px; opacity:0.9;">タップして思考の雲の中へ</div>
+            
+            <div id="b-list" class="cloud-grid"></div>
+            
+            <div style="margin-top:20px; text-align:center; padding-bottom:40px;">
+                <button onclick="exportBData()" style="width:100%; background:rgba(255,255,255,0.8); color:#333; border:none; margin-bottom:8px;"><i data-lucide="share-2"></i> AI分析用出力</button>
+                <button onclick="downloadBackup()" style="width:100%; background:rgba(255,255,255,0.5); color:#333;">バックアップ保存</button>
+            </div>
         </section>
+    </div>
+
+    <!-- Read Modal (Sky Style) -->
+    <div id="read-modal" class="modal-overlay hidden sky-bg-modal">
+        <div class="modal-header">
+            <button onclick="hideReadModal()" style="background:none; padding:0; display:flex; align-items:center;">
+                <i data-lucide="chevron-left" style="color:#333;"></i> <span style="font-weight:bold; color:#333;">戻る</span>
+            </button>
+            <h3 id="read-title" style="margin:0; font-size:16px; color:#333;">タイトル</h3>
+            <button onclick="deleteCurrentGroup()" style="background:none; color:red; font-size:12px; padding:0;">削除</button>
+        </div>
+        <div id="read-content" class="modal-content"></div>
     </div>
 
     <!-- Night Mode Overlay -->
     <div id="night-mode-overlay" class="hidden">
         <h2 id="nm-count"></h2>
         <div class="item-card" id="nm-target-card"></div>
-        <input type="text" id="nm-substep" placeholder="次の一手は？ (必須)" style="width:100%; padding:12px; margin: 10px 0;">
+        <input type="text" id="nm-substep" placeholder="次の一手は？ (必須)" style="width:100%; padding:12px; margin: 10px 0; border:2px solid var(--border); border-radius:8px;">
         <div class="btn-group" style="grid-template-columns: 1fr 1fr;">
             <button onclick="processNightItem('today')">今日</button>
             <button onclick="processNightItem('tomorrow')">明日</button>
@@ -168,12 +353,12 @@
     </div>
 
     <!-- Insight Entry Modal -->
-    <div id="insight-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:150; padding:20px; box-sizing:border-box;">
+    <div id="insight-modal" class="modal-overlay hidden" style="padding:20px; background:white;">
         <h3>内観の記録</h3>
-        <input type="text" id="ins-title" placeholder="見出し (過去の候補が出ます)" style="width:100%; padding:10px;" oninput="handleTitleInput(this.value)">
+        <input type="text" id="ins-title" placeholder="見出し (過去の候補が出ます)" style="width:100%; padding:10px; margin-bottom:5px; border:1px solid var(--border); border-radius:4px;" oninput="handleTitleInput(this.value)">
         <div id="suggestion-box" class="hidden"></div>
-        <textarea id="ins-content" placeholder="本文" style="width:100%; height:200px; margin-top:10px;"></textarea>
-        <input type="text" id="ins-emotion" placeholder="感情 (任意)" style="width:100%; padding:10px; margin-top:10px;">
+        <textarea id="ins-content" placeholder="本文" style="width:100%; height:200px; margin-top:10px; padding:10px; border:1px solid var(--border); border-radius:4px;"></textarea>
+        <input type="text" id="ins-emotion" placeholder="感情 (任意)" style="width:100%; padding:10px; margin-top:10px; border:1px solid var(--border); border-radius:4px;">
         <button class="btn-insight" onclick="saveInsight(event)" style="width:100%; margin-top:15px;">保存</button>
         <button onclick="hideInsightModal()" style="width:100%; margin-top:10px; background:none;">戻る</button>
     </div>
@@ -181,14 +366,15 @@
     <nav>
         <div onclick="switchView('home')" id="nav-home" class="active"><i data-lucide="edit-3"></i><div>Home</div></div>
         <div onclick="switchView('a')" id="nav-a"><i data-lucide="list-todo"></i><div>Aレーン</div></div>
-        <div onclick="switchView('b')" id="nav-b"><i data-lucide="brain"></i><div>Bレーン</div></div>
+        <div onclick="switchView('b')" id="nav-b"><i data-lucide="cloud"></i><div>Bレーン</div></div>
     </nav>
 
     <script>
-        // --- Firework Effect System ---
-        const canvas = document.getElementById('fireworks-canvas');
+        // --- FX System (Fireworks & Sparkles) ---
+        const canvas = document.getElementById('fx-canvas');
         const ctx = canvas.getContext('2d');
         let particles = [];
+        let sparkles = [];
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -197,105 +383,202 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        function createParticles(x, y, count = 30) {
+        function createParticles(x, y, count = 50) { 
             const colors = ['#ff4d4d', '#4dabf7', '#51cf66', '#fcc419', '#ff6b6b', '#845ef7'];
             for (let i = 0; i < count; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 1.0,
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() - 0.5) * 15,
+                    life: 1.0, 
                     color: colors[Math.floor(Math.random() * colors.length)],
-                    size: Math.random() * 4 + 2
+                    size: Math.random() * 8 + 3
                 });
             }
         }
 
-        function animateFireworks() {
+        function triggerSparkles() {
+            sparkles = [];
+            for(let i=0; i<80; i++) { 
+                sparkles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 3,
+                    opacity: 0,
+                    speed: Math.random() * 0.05 + 0.02,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function animateFX() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Fireworks
             for (let i = 0; i < particles.length; i++) {
                 let p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.2; // Gravity
-                p.life -= 0.02;
-                p.size *= 0.95;
+                p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life -= 0.015; p.size *= 0.96;
+                ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                if (p.life <= 0) { particles.splice(i, 1); i--; }
+            }
 
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life;
+            // Sparkles
+            for (let i = 0; i < sparkles.length; i++) {
+                let s = sparkles[i];
+                s.y -= 0.5; // Float up
+                s.phase += s.speed;
+                s.opacity = (Math.sin(s.phase) + 1) / 2; 
+                
+                ctx.fillStyle = "#FFD700"; // Gold
+                ctx.globalAlpha = s.opacity;
+                ctx.beginPath(); 
+                
+                // Draw star shape
+                const r = s.size;
+                ctx.save();
+                ctx.translate(s.x, s.y);
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.moveTo(0, -r);
+                ctx.quadraticCurveTo(r/4, -r/4, r, 0);
+                ctx.quadraticCurveTo(r/4, r/4, 0, r);
+                ctx.quadraticCurveTo(-r/4, r/4, -r, 0);
+                ctx.quadraticCurveTo(-r/4, -r/4, 0, -r);
                 ctx.fill();
+                ctx.restore();
 
-                if (p.life <= 0) {
-                    particles.splice(i, 1);
-                    i--;
+                if (s.y < -10 || s.opacity < 0.01) { 
+                    if(Math.random() > 0.95) { 
+                         sparkles[i].y = canvas.height + 10;
+                    }
                 }
             }
+            
             ctx.globalAlpha = 1.0;
-            requestAnimationFrame(animateFireworks);
+            requestAnimationFrame(animateFX);
         }
-        animateFireworks();
+        animateFX();
 
         function triggerExplosion(e) {
             if (!e) return;
-            // クリック位置または要素の中心を取得
             let x, y;
-            if (e.clientX && e.clientY) {
-                x = e.clientX;
-                y = e.clientY;
-            } else if (e.target) {
+            if (e.clientX && e.clientY) { x = e.clientX; y = e.clientY; }
+            else if (e.target) {
                 const rect = e.target.getBoundingClientRect();
-                x = rect.left + rect.width / 2;
-                y = rect.top + rect.height / 2;
-            } else {
-                x = window.innerWidth / 2;
-                y = window.innerHeight / 2;
-            }
-            createParticles(x, y, 40);
+                x = rect.left + rect.width / 2; y = rect.top + rect.height / 2;
+            } else { x = window.innerWidth / 2; y = window.innerHeight / 2; }
+            createParticles(x, y, 60);
         }
 
         // --- Core Logic & Database ---
         let db;
-        const dbRequest = indexedDB.open("FocusLaneDB", 1);
+        // Keep version 2
+        const dbRequest = indexedDB.open("FocusLaneDB", 2); 
+        
         dbRequest.onupgradeneeded = (e) => {
             db = e.target.result;
-            db.createObjectStore("actions", { keyPath: "id" });
-            db.createObjectStore("insights", { keyPath: "id" });
+            if(!db.objectStoreNames.contains("actions")) db.createObjectStore("actions", { keyPath: "id" });
+            if(!db.objectStoreNames.contains("insights")) db.createObjectStore("insights", { keyPath: "id" });
+            if(!db.objectStoreNames.contains("user")) db.createObjectStore("user", { keyPath: "key" });
         };
-        dbRequest.onsuccess = (e) => { db = e.target.result; renderALane(); renderBLane(); };
+        dbRequest.onsuccess = (e) => { 
+            db = e.target.result; 
+            initUserStats(); 
+            renderALane(); 
+            renderBLane(); 
+        };
 
+        // --- Level System ---
+        let userStats = { key: "stats", exp: 0, level: 1 };
+        const LEVEL_TITLES = [
+            "駆け出しの思考", "思考の旅人", "アイデアの泉", "深淵を覗く者", 
+            "内観の達人", "悟りの境地", "マスターマインド"
+        ];
+        const CHEER_MSGS = [
+            "その調子！", "素晴らしいアウトプット！", "脳がスッキリしたね！", 
+            "君の思考は宝物だ。", "今日も進歩しているよ。", "ナイス内観！"
+        ];
+
+        async function initUserStats() {
+            const tx = db.transaction("user", "readonly");
+            const req = tx.objectStore("user").get("stats");
+            req.onsuccess = () => {
+                if(req.result) userStats = req.result;
+                updateLevelUI();
+            };
+        }
+
+        async function addExp(amount) {
+            userStats.exp += amount;
+            const nextLevelExp = userStats.level * 100;
+            if (userStats.exp >= nextLevelExp) {
+                userStats.exp -= nextLevelExp;
+                userStats.level++;
+                alert(`レベルアップ！ Lv.${userStats.level} になりました！`);
+                triggerExplosion({clientX: window.innerWidth/2, clientY: window.innerHeight/2}); 
+            }
+            
+            const tx = db.transaction("user", "readwrite");
+            tx.objectStore("user").put(userStats);
+            updateLevelUI();
+        }
+
+        function updateLevelUI() {
+            document.getElementById('lvl-badge').innerText = `Lv.${userStats.level}`;
+            const titleIndex = Math.min(Math.floor((userStats.level - 1) / 5), LEVEL_TITLES.length - 1);
+            document.getElementById('lvl-title').innerText = LEVEL_TITLES[titleIndex];
+            
+            const maxExp = userStats.level * 100;
+            document.getElementById('exp-text').innerText = `${userStats.exp} / ${maxExp}`;
+            document.getElementById('exp-fill').style.width = `${(userStats.exp / maxExp) * 100}%`;
+        }
+
+        function showCheerMsg() {
+            const msg = CHEER_MSGS[Math.floor(Math.random() * CHEER_MSGS.length)];
+            const el = document.getElementById('cheer-msg');
+            el.innerText = `✨ ${msg}`;
+            el.style.animation = 'none';
+            el.offsetHeight; 
+            el.style.animation = 'fadeIn 1s';
+        }
+
+        // --- View Switching ---
         function switchView(view) {
             document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`view-${view}`).classList.remove('hidden');
             document.querySelectorAll('nav div').forEach(d => d.classList.remove('active'));
             document.getElementById(`nav-${view}`).classList.add('active');
             lucide.createIcons();
-            if(view === 'a') renderALane();
-            if(view === 'b') renderBLane();
+            
+            if(view === 'a') {
+                document.body.style.background = "#f8f9fa"; // Reset bg
+                renderALane(); triggerSparkles(); showCheerMsg(); 
+            }
+            if(view === 'b') { 
+                // Sky Gradient Background for B-Lane
+                document.body.style.background = "linear-gradient(to bottom, #89f7fe, #66a6ff)";
+                document.body.style.minHeight = "100vh";
+                renderBLane(); triggerSparkles(); showCheerMsg(); 
+            } else {
+                document.body.style.background = "#f8f9fa";
+                document.body.style.minHeight = "auto";
+            }
         }
 
         // --- A-Lane Logic ---
         async function saveData(type, event) {
             const content = document.getElementById('main-input').value;
             if(!content) return;
-            
-            // 花火発火
             triggerExplosion(event);
-
+            addExp(15); 
+            
             const item = {
-                id: crypto.randomUUID(),
-                type,
-                content,
-                subStep: "",
-                schedule: "unprocessed",
-                createdAt: Date.now()
+                id: crypto.randomUUID(), type, content,
+                subStep: "", schedule: "unprocessed", createdAt: Date.now()
             };
             const tx = db.transaction("actions", "readwrite");
             tx.objectStore("actions").add(item);
             document.getElementById('main-input').value = "";
-            // alertなしでスムーズに
         }
 
         async function renderALane() {
@@ -306,9 +589,7 @@
                 const req = tx.objectStore("actions").getAll();
                 req.onsuccess = () => res(req.result);
             });
-
             items.sort((a,b) => (a.type === 'task' ? -1 : 1));
-            
             items.forEach(item => {
                 const div = document.createElement('div');
                 div.className = `item-card ${item.type === 'idea' ? 'item-idea' : ''}`;
@@ -322,6 +603,14 @@
                 `;
                 list.appendChild(div);
             });
+        }
+
+        async function deleteItem(store, id, event) {
+            if(!confirm("削除しますか？")) return;
+            if(event) triggerExplosion(event);
+            const tx = db.transaction(store, "readwrite");
+            tx.objectStore(store).delete(id);
+            store === 'actions' ? renderALane() : renderBLane();
         }
 
         // --- Night Mode ---
@@ -353,11 +642,9 @@
         async function processNightItem(schedule) {
             const subStep = document.getElementById('nm-substep').value;
             if(!subStep) return alert("次の一手を決めてください");
-            
             const item = nightQueue.shift();
             item.subStep = subStep;
             item.schedule = schedule;
-
             const tx = db.transaction("actions", "readwrite");
             tx.objectStore("actions").put(item);
             showNextNightItem();
@@ -365,7 +652,7 @@
 
         function closeNightMode() { document.getElementById('night-mode-overlay').classList.add('hidden'); }
 
-        // --- B-Lane Logic ---
+        // --- B-Lane Logic (Cloud Style) ---
         function showInsightModal() { 
             const text = document.getElementById('main-input').value;
             document.getElementById('ins-content').value = text;
@@ -397,16 +684,18 @@
             const title = document.getElementById('ins-title').value || "無題";
             const content = document.getElementById('ins-content').value;
             const emotion = document.getElementById('ins-emotion').value;
-            
-            // 花火発火
             triggerExplosion(event);
-
+            addExp(30); 
+            
             const item = { id: crypto.randomUUID(), title, content, emotion, createdAt: Date.now() };
             const tx = db.transaction("insights", "readwrite");
             tx.objectStore("insights").add(item);
             document.getElementById('main-input').value = "";
             hideInsightModal();
         }
+
+        let bLaneCache = {};
+        let currentOpenTitle = "";
 
         async function renderBLane() {
             const list = document.getElementById('b-list');
@@ -417,57 +706,93 @@
                 req.onsuccess = () => res(req.result);
             });
 
+            // Group by title
             const summary = items.reduce((acc, cur) => {
                 acc[cur.title] = (acc[cur.title] || []);
                 acc[cur.title].push(cur);
                 return acc;
             }, {});
+            
+            bLaneCache = summary;
 
-            for (const title in summary) {
+            const sortedTitles = Object.keys(summary).sort((a,b) => {
+                const lastA = Math.max(...summary[a].map(i=>i.createdAt));
+                const lastB = Math.max(...summary[b].map(i=>i.createdAt));
+                return lastB - lastA;
+            });
+
+            sortedTitles.forEach(title => {
+                const groupItems = summary[title];
+                // Newest first for preview
+                groupItems.sort((a,b) => b.createdAt - a.createdAt); 
+                const lastItem = groupItems[0];
+                
                 const div = document.createElement('div');
-                div.className = 'item-card';
-                div.style.borderLeftColor = 'var(--accent-b)';
+                div.className = 'cloud-card';
                 div.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <strong>${title} (${summary[title].length}件)</strong>
-                        <button onclick="deleteGroup('${title}', event)" style="background:none; color:red; font-size:11px; border:1px solid red; padding:4px; border-radius:4px;">一括削除</button>
+                    <div class="cloud-title"><i data-lucide="cloud" size="18"></i> ${title}</div>
+                    <div class="cloud-preview">${lastItem.content}</div>
+                    <div class="cloud-meta">
+                        <span>${new Date(lastItem.createdAt).toLocaleDateString()}</span>
+                        <span class="cloud-badge">${groupItems.length}件の思考</span>
                     </div>
                 `;
-                div.onclick = (e) => {
-                    // 削除ボタンクリック時は詳細表示しない
-                    if(e.target.tagName === 'BUTTON') return;
-                    alert(summary[title].map(i => `[${i.emotion || '-'}] ${i.content}`).join('\n---\n'));
-                };
+                div.onclick = () => showReadModal(title);
                 list.appendChild(div);
-            }
+            });
+            lucide.createIcons();
         }
 
-        async function deleteItem(store, id, event) {
-            if(!confirm("削除しますか？")) return;
+        // --- Read Modal Logic (Cloud Style) ---
+        function showReadModal(title) {
+            currentOpenTitle = title;
+            const items = bLaneCache[title] || [];
+            // Sort by Date DESC (Newest top for "Floating Thoughts" feel)
+            items.sort((a,b) => b.createdAt - a.createdAt);
             
-            if(event) triggerExplosion(event);
-
-            const tx = db.transaction(store, "readwrite");
-            tx.objectStore(store).delete(id);
-            store === 'actions' ? renderALane() : renderBLane();
+            const container = document.getElementById('read-content');
+            document.getElementById('read-title').innerText = title;
+            
+            container.innerHTML = items.map(i => {
+                const date = new Date(i.createdAt);
+                const timeStr = `${date.toLocaleDateString()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                return `
+                <div class="thought-bubble">
+                    <div class="thought-meta">
+                        <span>${timeStr}</span>
+                        ${i.emotion ? `<span style="font-weight:bold; color:#4dabf7;">${i.emotion}</span>` : ''}
+                    </div>
+                    <div class="thought-body">${i.content}</div>
+                    <div style="text-align:right; margin-top:8px;">
+                        <button onclick="deleteItem('insights', '${i.id}', event); setTimeout(()=>showReadModal('${title}'), 100)" style="background:none; color:red; font-size:10px; border:none; padding:0;">削除</button>
+                    </div>
+                </div>
+            `}).join('');
+            
+            const modal = document.getElementById('read-modal');
+            modal.classList.remove('hidden');
+            // Scroll to top
+            container.scrollTop = 0;
         }
 
-        async function deleteGroup(title, event) {
-            // イベント伝播停止（詳細表示を防ぐ）
-            if(event) event.stopPropagation();
-            
-            if(!confirm(`「${title}」の全ログを削除しますか？`)) return;
-            
-            if(event) triggerExplosion(event);
+        function hideReadModal() {
+            document.getElementById('read-modal').classList.add('hidden');
+            renderBLane(); 
+        }
 
+        async function deleteCurrentGroup() {
+            if(!currentOpenTitle) return;
+            if(!confirm(`「${currentOpenTitle}」の履歴を全て削除しますか？`)) return;
+            
             const tx = db.transaction("insights", "readwrite");
             const store = tx.objectStore("insights");
             const items = await new Promise(res => {
                 const req = store.getAll();
                 req.onsuccess = () => res(req.result);
             });
-            items.filter(i => i.title === title).forEach(i => store.delete(i.id));
-            renderBLane();
+            items.filter(i => i.title === currentOpenTitle).forEach(i => store.delete(i.id));
+            
+            hideReadModal();
         }
 
         async function exportBData() {
@@ -493,7 +818,12 @@
                 const req = db.transaction("insights", "readonly").objectStore("insights").getAll();
                 req.onsuccess = () => res(req.result);
             });
-            const data = JSON.stringify({ actions, insights });
+            const user = await new Promise(res => {
+                const req = db.transaction("user", "readonly").objectStore("user").get("stats");
+                req.onsuccess = () => res(req.result);
+            });
+
+            const data = JSON.stringify({ actions, insights, user });
             const blob = new Blob([data], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
