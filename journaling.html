@@ -399,14 +399,15 @@
 
         function triggerSparkles() {
             sparkles = [];
-            for(let i=0; i<80; i++) { 
+            for(let i=0; i<60; i++) { 
                 sparkles.push({
                     x: Math.random() * canvas.width,
-                    y: Math.random() * canvas.height,
-                    size: Math.random() * 3,
-                    opacity: 0,
-                    speed: Math.random() * 0.05 + 0.02,
-                    phase: Math.random() * Math.PI * 2
+                    y: Math.random() * canvas.height, // 画面全体に配置
+                    size: Math.random() * 5 + 2,
+                    vx: (Math.random() - 0.5) * 0.5, // 横揺れはごくわずかに
+                    vy: -Math.random() * 3 - 1,      // 下から上への移動のみ
+                    life: 1.0, 
+                    decay: Math.random() * 0.01 + 0.01
                 });
             }
         }
@@ -423,15 +424,21 @@
                 if (p.life <= 0) { particles.splice(i, 1); i--; }
             }
 
-            // Sparkles
+            // Sparkles (Gentle Rising)
             for (let i = 0; i < sparkles.length; i++) {
                 let s = sparkles[i];
-                s.y -= 0.5; // Float up
-                s.phase += s.speed;
-                s.opacity = (Math.sin(s.phase) + 1) / 2; 
+                s.x += s.vx; 
+                s.y += s.vy; // 上昇
+                s.life -= s.decay; 
+                
+                if(s.life <= 0) {
+                    sparkles.splice(i, 1);
+                    i--;
+                    continue;
+                }
                 
                 ctx.fillStyle = "#FFD700"; // Gold
-                ctx.globalAlpha = s.opacity;
+                ctx.globalAlpha = s.life;
                 ctx.beginPath(); 
                 
                 // Draw star shape
@@ -446,12 +453,6 @@
                 ctx.quadraticCurveTo(-r/4, -r/4, 0, -r);
                 ctx.fill();
                 ctx.restore();
-
-                if (s.y < -10 || s.opacity < 0.01) { 
-                    if(Math.random() > 0.95) { 
-                         sparkles[i].y = canvas.height + 10;
-                    }
-                }
             }
             
             ctx.globalAlpha = 1.0;
