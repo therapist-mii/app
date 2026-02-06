@@ -103,9 +103,9 @@
             background-size: 20px 20px;
         }
         
+        /* 共通ノードスタイル */
         .map-node {
             position: absolute;
-            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -116,52 +116,64 @@
             z-index: 10;
             user-select: none;
             -webkit-user-select: none;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            border: 2px solid white; /* 画像の時に境界線を見やすく */
+            /* 中心基準配置のための変形 */
+            transform: translate(-50%, -50%);
         }
         
-        /* 画像があるときはテキストを隠す（またはホバーで表示など） */
-        .map-node.has-image {
-            color: transparent !important;
-            text-shadow: none !important;
-        }
-
         .map-node:active {
             cursor: grabbing;
-            transform: scale(1.05);
+            transform: translate(-50%, -50%) scale(1.05);
             z-index: 50; /* ドラッグ中は最前面 */
             box-shadow: 0 8px 15px rgba(0,0,0,0.2);
         }
 
+        /* 中心ノード（大きな円） */
         .map-center {
-            width: 140px; /* 少し大きく */
+            width: 140px; 
             height: 140px;
+            border-radius: 50%; /* 完全な円 */
             font-weight: bold;
             font-size: 1.2rem;
             z-index: 20;
             left: 50%;
             top: 50%;
-            transform: translate(-50%, -50%); /* 中心配置 */
             box-shadow: 0 0 25px rgba(0,0,0,0.15);
-            cursor: pointer; /* クリック可能に */
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+            border: 4px solid white;
         }
         
-        .map-center:active {
-            transform: translate(-50%, -50%) scale(0.98);
+        /* 子ノード（角丸長方形 / カプセル型） */
+        .map-leaf {
+            /* 固定サイズではなく、コンテンツに合わせて伸縮 */
+            width: auto;
+            height: auto;
+            min-width: 60px;
+            max-width: 180px; /* あまり広がりすぎないように */
+            
+            border-radius: 9999px; /* 角丸（カプセル形状） */
+            padding: 10px 20px;
+            
+            color: #555; 
+            font-size: 0.9rem;
+            font-weight: bold;
+            line-height: 1.3;
         }
 
-        .map-leaf {
-            width: 90px;
-            height: 90px;
-            color: #555; /* パステル背景に合う文字色 */
-            font-size: 0.8rem;
-            padding: 8px;
-            line-height: 1.2;
-            overflow: hidden;
+        /* 画像付きの子ノード（正方形の角丸） */
+        .map-leaf.has-image {
+            width: 100px;
+            height: 100px;
+            border-radius: 20px; /* 画像は少し角の丸い四角 */
+            padding: 0;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 2px solid white;
+            color: transparent; /* 文字は隠す */
         }
-        
+
         /* カラーパレット選択時のスタイル */
         .color-radio:checked + div {
             border: 2px solid #6366F1;
@@ -351,7 +363,7 @@
 
     <script>
         // --- データ管理 ---
-        const DB_KEY = 'vision_sparkle_data_v2'; // バージョンアップ
+        const DB_KEY = 'vision_sparkle_data_v3'; // バージョンアップ
         let appData = {
             // mainVision: { text, image, color }
             mainVision: { text: "My Vision", color: "#FFD6E0", image: null },
@@ -365,7 +377,6 @@
             const stored = localStorage.getItem(DB_KEY);
             if (stored) {
                 const loaded = JSON.parse(stored);
-                // データ移行（mainVisionがない場合など）
                 appData = { ...appData, ...loaded };
                 if (!appData.mainVision) {
                     appData.mainVision = { text: "My Vision", color: "#FFD6E0", image: null };
@@ -374,8 +385,6 @@
             renderGoals();
             // renderMapはタブ切り替え時に実行
             renderAffirmations();
-            
-            // アプリ起動時のランダムメッセージ
             showDailyMessage();
         }
 
@@ -512,28 +521,24 @@
             let selectedColor = '#FFD6E0';
             for(const r of radios) { if(r.checked) selectedColor = r.value; }
             
-            // 画像のみでもOKにする
             if (!text && !hasImage) {
                 alert("文字または画像を入力してください");
                 return;
             }
 
             if (editingGoalId === 'main') {
-                // メインビジョンの保存
                 appData.mainVision = {
-                    text: text || "", // 画像のみの場合はテキスト空
+                    text: text || "", 
                     image: hasImage ? imageSrc : null,
                     color: selectedColor
                 };
 
             } else if (editingGoalId) {
-                // 更新
                 const goal = appData.goals.find(g => g.id === editingGoalId);
                 goal.text = text;
                 goal.image = hasImage ? imageSrc : null;
                 goal.color = selectedColor;
             } else {
-                // 新規作成
                 const newGoal = {
                     id: Date.now().toString(),
                     text: text,
@@ -649,50 +654,51 @@
             centerNode.className = 'map-node map-center';
             centerNode.style.backgroundColor = appData.mainVision.color;
             
-            // 画像があれば背景に設定してテキストは表示しない（または見えなくする）
+            // 画像があれば背景に設定
             if (appData.mainVision.image) {
                 centerNode.style.backgroundImage = `url(${appData.mainVision.image})`;
                 centerNode.classList.add('has-image');
             } else {
                 centerNode.innerText = appData.mainVision.text;
-                centerNode.style.color = '#555'; // テキスト色
+                centerNode.style.color = '#555';
             }
+            // 中心配置（style.left/top は中心座標）
+            centerNode.style.left = centerX + 'px';
+            centerNode.style.top = centerY + 'px';
             
-            centerNode.onclick = () => openModal('main'); // メインビジョン編集
+            centerNode.onclick = () => openModal('main'); 
             container.appendChild(centerNode);
 
             // --- 周辺ノードの描画 ---
-            let radius = Math.min(rect.width, rect.height) / 2 - 60;
+            let radius = Math.min(rect.width, rect.height) / 2 - 80;
             if (radius < 100) radius = 100;
             const count = activeGoals.length;
             const angleStep = (2 * Math.PI) / (count || 1);
 
             activeGoals.forEach((goal, index) => {
                 const node = document.createElement('div');
+                // map-leaf (カプセル型) を基本に、画像がある場合は has-image クラスを追加
                 node.className = 'map-node map-leaf';
                 node.style.backgroundColor = goal.color || '#D7ECD9';
 
-                // 画像がある場合の処理
                 if (goal.image) {
-                    node.style.backgroundImage = `url(${goal.image})`;
                     node.classList.add('has-image');
-                    // 画像があるときはテキストを表示しない（classでcolor:transparent）
-                }
-                
-                // テキスト（画像がある場合は透明になる）
-                node.innerText = goal.text;
-
-                // 位置の決定
-                let x, y;
-                if (goal.position && typeof goal.position.x === 'number') {
-                    x = goal.position.x;
-                    y = goal.position.y;
+                    node.style.backgroundImage = `url(${goal.image})`;
                 } else {
+                    node.innerText = goal.text;
+                }
+
+                // 位置の決定 (座標はすべて要素の中心点)
+                let x, y;
+                if (goal.position && typeof goal.position.cx === 'number') {
+                    // 保存された中心座標がある場合
+                    x = goal.position.cx;
+                    y = goal.position.cy;
+                } else {
+                    // 初期配置
                     const angle = index * angleStep - (Math.PI / 2);
-                    const nodeCX = centerX + Math.cos(angle) * radius;
-                    const nodeCY = centerY + Math.sin(angle) * radius;
-                    x = nodeCX - 45;
-                    y = nodeCY - 45;
+                    x = centerX + Math.cos(angle) * radius;
+                    y = centerY + Math.sin(angle) * radius;
                 }
 
                 node.style.left = `${x}px`;
@@ -703,11 +709,12 @@
             });
         }
 
-        // ドラッグ & ドロップ実装
+        // ドラッグ & ドロップ実装（中心座標ベース）
         function addDragHandlers(element, goalId) {
             let isDragging = false;
             let startX, startY;
-            let initialLeft, initialTop;
+            // スタイル上の現在の中心座標を取得
+            let currentCx, currentCy;
             let dragThreshold = 5; 
             let movedDistance = 0;
 
@@ -716,8 +723,10 @@
                 movedDistance = 0;
                 startX = e.clientX;
                 startY = e.clientY;
-                initialLeft = element.offsetLeft;
-                initialTop = element.offsetTop;
+                // 現在の style.left / style.top を数値として取得（px除去）
+                currentCx = parseFloat(element.style.left);
+                currentCy = parseFloat(element.style.top);
+                
                 element.setPointerCapture(e.pointerId);
                 element.style.zIndex = 100;
             });
@@ -727,8 +736,9 @@
                 const dx = e.clientX - startX;
                 const dy = e.clientY - startY;
                 movedDistance = Math.sqrt(dx*dx + dy*dy);
-                element.style.left = `${initialLeft + dx}px`;
-                element.style.top = `${initialTop + dy}px`;
+                
+                element.style.left = `${currentCx + dx}px`;
+                element.style.top = `${currentCy + dy}px`;
             });
 
             element.addEventListener('pointerup', (e) => {
@@ -740,9 +750,13 @@
                 if (movedDistance < dragThreshold) {
                     openModal(goalId);
                 } else {
+                    // 位置保存（中心座標を保存）
                     const goal = appData.goals.find(g => g.id === goalId);
                     if (goal) {
-                        goal.position = { x: element.offsetLeft, y: element.offsetTop };
+                        goal.position = { 
+                            cx: parseFloat(element.style.left), 
+                            cy: parseFloat(element.style.top) 
+                        };
                         saveData();
                     }
                 }
@@ -791,8 +805,6 @@
                 
             const borderColor = goal.color || '#e5e7eb';
             const borderStyle = isAchieved ? '' : `border-left: 5px solid ${borderColor};`;
-
-            // テキストがない（画像のみ）場合の表示調整
             const displayText = goal.text ? escapeHtml(goal.text) : '<span class="text-gray-400 text-sm italic">(画像のみの目標)</span>';
 
             return `
@@ -874,7 +886,7 @@
         }
 
         function triggerConfetti() {
-            const colors = ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA']; // パステルコンフェッティ
+            const colors = ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA']; 
             for (let i = 0; i < 100; i++) {
                 const confetti = document.createElement('div');
                 confetti.classList.add('confetti');
