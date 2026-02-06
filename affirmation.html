@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Sparkle</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            overscroll-behavior-y: none; /* Pull-to-refresh防止 */
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+
+        /* 演出用クラス */
+        .sparkle {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: #FFD700;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            animation: floatUp 1.5s ease-out forwards;
+            box-shadow: 0 0 10px #FFD700, 0 0 20px #FFF;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-80vh) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            pointer-events: none;
+            z-index: 9999;
+            animation: fall 3s linear forwards;
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* スライドショー用 */
+        .fade-enter {
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+        .fade-enter-active {
+            opacity: 1;
+        }
+        .fade-exit {
+            opacity: 1;
+            transition: opacity 1s ease-in-out;
+        }
+        .fade-exit-active {
+            opacity: 0;
+        }
+
+        /* タブのアクティブスタイル */
+        .tab-active {
+            color: #A5B4FC; /* パステルインディゴ */
+            border-bottom: 3px solid #A5B4FC;
+        }
+        
+        /* マップビュー用スタイル */
+        #map-container {
+            position: relative;
+            width: 100%;
+            height: 100%; /* 親要素に合わせる */
+            min-height: 500px;
+            overflow: hidden;
+            /* ドラッグ操作のためにデフォルトのタッチアクションを無効化 */
+            touch-action: none; 
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        .map-node {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.1s ease, box-shadow 0.2s;
+            cursor: grab;
+            z-index: 10;
+            user-select: none;
+            -webkit-user-select: none;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 2px solid white; /* 画像の時に境界線を見やすく */
+        }
+        
+        /* 画像があるときはテキストを隠す（またはホバーで表示など） */
+        .map-node.has-image {
+            color: transparent !important;
+            text-shadow: none !important;
+        }
+
+        .map-node:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            z-index: 50; /* ドラッグ中は最前面 */
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+
+        .map-center {
+            width: 140px; /* 少し大きく */
+            height: 140px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            z-index: 20;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%); /* 中心配置 */
+            box-shadow: 0 0 25px rgba(0,0,0,0.15);
+            cursor: pointer; /* クリック可能に */
+        }
+        
+        .map-center:active {
+            transform: translate(-50%, -50%) scale(0.98);
+        }
+
+        .map-leaf {
+            width: 90px;
+            height: 90px;
+            color: #555; /* パステル背景に合う文字色 */
+            font-size: 0.8rem;
+            padding: 8px;
+            line-height: 1.2;
+            overflow: hidden;
+        }
+        
+        /* カラーパレット選択時のスタイル */
+        .color-radio:checked + div {
+            border: 2px solid #6366F1;
+            transform: scale(1.2);
+        }
+
+    </style>
+</head>
+<body class="bg-indigo-50/30 h-screen flex flex-col text-gray-700 overflow-hidden">
+
+    <!-- ヘッダー -->
+    <header class="bg-white/80 backdrop-blur-md shadow-sm z-30">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-indigo-400">
+                <i class="fa-solid fa-wand-magic-sparkles mr-1 text-pink-300"></i> Vision Sparkle
+            </h1>
+            <button onclick="startSlideshow()" class="text-indigo-400 hover:bg-indigo-50 p-2 rounded-full transition" title="ビジョン・スライドショー">
+                <i class="fa-solid fa-play"></i>
+            </button>
+        </div>
+        
+        <!-- タブナビゲーション -->
+        <nav class="flex justify-around border-b border-gray-100 max-w-md mx-auto bg-white overflow-x-auto">
+            <button onclick="switchTab('goals')" id="tab-goals" class="tab-active flex-1 py-3 text-sm font-bold transition text-center min-w-[80px]">
+                リスト
+            </button>
+             <button onclick="switchTab('map')" id="tab-map" class="flex-1 py-3 text-sm font-bold text-gray-400 transition text-center min-w-[80px]">
+                マップ
+            </button>
+            <button onclick="switchTab('achieved')" id="tab-achieved" class="flex-1 py-3 text-sm font-bold text-gray-400 transition text-center min-w-[80px]">
+                達成
+            </button>
+            <button onclick="switchTab('affirmation')" id="tab-affirmation" class="flex-1 py-3 text-sm font-bold text-gray-400 transition text-center min-w-[80px]">
+                言霊
+            </button>
+        </nav>
+    </header>
+
+    <!-- メインコンテンツエリア -->
+    <main class="flex-1 overflow-y-auto relative max-w-md mx-auto w-full bg-white/50" id="main-container">
+        
+        <!-- 目標リスト画面 -->
+        <div id="view-goals" class="p-4 space-y-4 pb-24">
+            <div id="goals-list" class="space-y-4">
+                <!-- JSで動的に生成 -->
+                <div class="text-center text-gray-400 mt-10">
+                    <p>右下のボタンから<br>新しい目標を追加しましょう✨</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- マップ画面 -->
+        <div id="view-map" class="hidden w-full h-full relative overflow-hidden bg-white">
+            <div id="map-container">
+                <!-- 中心ノード (JSで制御) -->
+                <!-- 子ノードはJSで生成 -->
+                <div id="map-nodes-container"></div>
+            </div>
+            <div class="absolute bottom-20 left-0 right-0 text-center pointer-events-none">
+                <p class="text-xs text-gray-400 bg-white/80 inline-block px-3 py-1 rounded-full backdrop-blur z-20 shadow-sm">
+                    中心をタップしてメイン目標を設定
+                </p>
+            </div>
+        </div>
+
+        <!-- 叶ったリスト画面 -->
+        <div id="view-achieved" class="hidden p-4 space-y-4 pb-24">
+            <div id="achieved-list" class="space-y-4 opacity-80">
+                <!-- JSで動的に生成 -->
+            </div>
+        </div>
+
+        <!-- アファメーション画面 -->
+        <div id="view-affirmation" class="hidden p-4 flex flex-col h-full">
+            <div id="affirmation-history" class="flex-1 overflow-y-auto space-y-3 pb-4">
+                <!-- JSで生成 -->
+            </div>
+            
+            <!-- アファメーション入力エリア -->
+            <div class="mt-auto bg-white p-3 rounded-2xl shadow-lg border border-indigo-100 flex items-center gap-2 mb-4">
+                <input type="text" id="affirmation-input" placeholder="肯定的な言葉を入力..." 
+                    class="flex-1 bg-gray-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-300 outline-none">
+                <button onclick="submitAffirmation()" class="bg-gradient-to-r from-indigo-300 to-purple-300 text-white w-12 h-12 rounded-full shadow-md active:scale-95 transition flex items-center justify-center">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- FAB (目標追加ボタン) -->
+    <button onclick="openModal()" id="fab-add" class="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-pink-300 to-rose-300 text-white rounded-full shadow-xl hover:shadow-2xl flex items-center justify-center text-2xl z-40 transition transform hover:scale-105 active:scale-95">
+        <i class="fa-solid fa-plus"></i>
+    </button>
+
+    <!-- 目標追加/編集モーダル -->
+    <div id="goal-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.3s_ease-out]">
+            <div class="p-6">
+                <h2 id="modal-title" class="text-lg font-bold text-gray-700 mb-4 text-center">理想の形を描く</h2>
+                
+                <!-- 画像アップロード -->
+                <div class="mb-4">
+                    <label class="block w-full h-40 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition relative overflow-hidden group">
+                        <img id="preview-image" src="" class="absolute inset-0 w-full h-full object-cover hidden">
+                        <div class="text-gray-400 flex flex-col items-center group-hover:text-indigo-400 transition z-10 bg-white/60 backdrop-blur-sm p-2 rounded-lg">
+                            <i class="fa-solid fa-image text-2xl mb-1"></i>
+                            <span class="text-xs">写真のみでもOK</span>
+                        </div>
+                        <input type="file" id="goal-image" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+                    </label>
+                </div>
+
+                <!-- テキスト入力 -->
+                <textarea id="goal-text" rows="3" placeholder="文字を入れる場合はここに入力..." 
+                    class="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-indigo-200 outline-none resize-none mb-5 text-gray-700 placeholder-gray-400"></textarea>
+
+                <!-- カラー選択 (パステル) -->
+                <div class="mb-6">
+                    <p class="text-xs text-gray-400 mb-2 font-bold text-center">マップの色を選ぶ</p>
+                    <div class="flex justify-between items-center px-2">
+                        <!-- ピンク -->
+                        <label class="cursor-pointer">
+                            <input type="radio" name="goal-color" value="#FFD6E0" class="color-radio hidden" checked>
+                            <div class="w-8 h-8 rounded-full bg-[#FFD6E0] shadow-sm transition"></div>
+                        </label>
+                        <!-- ブルー -->
+                        <label class="cursor-pointer">
+                            <input type="radio" name="goal-color" value="#C4E0F9" class="color-radio hidden">
+                            <div class="w-8 h-8 rounded-full bg-[#C4E0F9] shadow-sm transition"></div>
+                        </label>
+                        <!-- グリーン -->
+                        <label class="cursor-pointer">
+                            <input type="radio" name="goal-color" value="#D7ECD9" class="color-radio hidden">
+                            <div class="w-8 h-8 rounded-full bg-[#D7ECD9] shadow-sm transition"></div>
+                        </label>
+                        <!-- イエロー -->
+                        <label class="cursor-pointer">
+                            <input type="radio" name="goal-color" value="#FEF9D9" class="color-radio hidden">
+                            <div class="w-8 h-8 rounded-full bg-[#FEF9D9] shadow-sm transition"></div>
+                        </label>
+                         <!-- パープル -->
+                         <label class="cursor-pointer">
+                            <input type="radio" name="goal-color" value="#E2DBF0" class="color-radio hidden">
+                            <div class="w-8 h-8 rounded-full bg-[#E2DBF0] shadow-sm transition"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="closeModal()" class="flex-1 py-3 rounded-xl bg-gray-100 text-gray-500 font-bold hover:bg-gray-200 transition">キャンセル</button>
+                    <button onclick="saveGoal()" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-indigo-300 to-purple-300 text-white font-bold shadow-md hover:shadow-lg transition">保存する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 今日のメッセージ（ランダムリマインド）モーダル -->
+    <div id="daily-message-modal" class="fixed inset-0 bg-black/70 z-[60] hidden flex items-center justify-center p-6">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center relative shadow-2xl animate-[fadeIn_0.5s_ease-out]">
+            <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-yellow-200 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-4 border-white">
+                <i class="fa-solid fa-sun text-xl text-yellow-600"></i>
+            </div>
+            <h3 class="mt-4 text-indigo-300 font-bold text-sm tracking-widest uppercase mb-4">Today's Sparkle</h3>
+            <p id="daily-message-text" class="text-xl font-bold text-gray-700 leading-relaxed mb-6">
+                <!-- JSで挿入 -->
+            </p>
+            <button onclick="closeDailyMessage()" class="w-full py-3 bg-indigo-300 text-white rounded-xl font-bold hover:bg-indigo-400 transition">
+                今日を始める
+            </button>
+        </div>
+    </div>
+
+    <!-- スライドショーオーバーレイ -->
+    <div id="slideshow-overlay" class="fixed inset-0 bg-black z-[100] hidden flex flex-col items-center justify-center">
+        <div id="slideshow-container" class="relative w-full h-full flex items-center justify-center">
+            <!-- コンテンツはJSで注入 -->
+            <img id="slide-img" class="absolute inset-0 w-full h-full object-cover opacity-60 transition-opacity duration-1000">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+            <div class="relative z-10 p-8 text-center">
+                <p id="slide-text" class="text-white text-2xl md:text-4xl font-bold leading-relaxed drop-shadow-lg tracking-wider transition-opacity duration-1000"></p>
+            </div>
+        </div>
+        <button onclick="stopSlideshow()" class="absolute top-6 right-6 text-white/70 hover:text-white z-20 text-sm border border-white/30 rounded-full px-4 py-2 bg-black/20 backdrop-blur-md">
+            閉じる
+        </button>
+    </div>
+
+    <script>
+        // --- データ管理 ---
+        const DB_KEY = 'vision_sparkle_data_v2'; // バージョンアップ
+        let appData = {
+            // mainVision: { text, image, color }
+            mainVision: { text: "My Vision", color: "#FFD6E0", image: null },
+            // goal: { id, text, image, status, createdAt, achievedAt, color, position: {x, y} }
+            goals: [],      
+            affirmations: [] // { id, text, createdAt }
+        };
+
+        // 初期ロード
+        function loadData() {
+            const stored = localStorage.getItem(DB_KEY);
+            if (stored) {
+                const loaded = JSON.parse(stored);
+                // データ移行（mainVisionがない場合など）
+                appData = { ...appData, ...loaded };
+                if (!appData.mainVision) {
+                    appData.mainVision = { text: "My Vision", color: "#FFD6E0", image: null };
+                }
+            }
+            renderGoals();
+            // renderMapはタブ切り替え時に実行
+            renderAffirmations();
+            
+            // アプリ起動時のランダムメッセージ
+            showDailyMessage();
+        }
+
+        function saveData() {
+            localStorage.setItem(DB_KEY, JSON.stringify(appData));
+        }
+
+        // --- UI操作 ---
+        let currentTab = 'goals';
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // タブスタイルの切り替え
+            ['goals', 'map', 'achieved', 'affirmation'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const view = document.getElementById(`view-${t}`);
+                
+                if (t === tabName) {
+                    btn.className = "flex-1 py-3 text-sm font-bold text-indigo-400 border-b-2 border-indigo-300 transition text-center min-w-[80px]";
+                    view.classList.remove('hidden');
+                    if(t === 'map') {
+                        setTimeout(renderMap, 50);
+                    }
+                } else {
+                    btn.className = "flex-1 py-3 text-sm font-bold text-gray-400 transition text-center hover:text-gray-500 min-w-[80px]";
+                    view.classList.add('hidden');
+                }
+            });
+
+            const fab = document.getElementById('fab-add');
+            if (tabName === 'goals' || tabName === 'map') {
+                fab.classList.remove('hidden');
+            } else {
+                fab.classList.add('hidden');
+            }
+        }
+
+        // --- 目標管理機能 ---
+        let editingGoalId = null;
+
+        function openModal(goalId = null) {
+            editingGoalId = goalId;
+            const modal = document.getElementById('goal-modal');
+            const textInput = document.getElementById('goal-text');
+            const imgPreview = document.getElementById('preview-image');
+            const radios = document.getElementsByName('goal-color');
+            const modalTitle = document.getElementById('modal-title');
+            
+            // リセット
+            textInput.value = "";
+            imgPreview.src = "";
+            imgPreview.classList.add('hidden');
+            document.getElementById('goal-image').value = ""; 
+            radios[0].checked = true;
+
+            if (goalId === 'main') {
+                // メインビジョンの編集
+                modalTitle.textContent = "中心の目標（メイン）";
+                textInput.value = appData.mainVision.text;
+                if (appData.mainVision.image) {
+                    imgPreview.src = appData.mainVision.image;
+                    imgPreview.classList.remove('hidden');
+                }
+                const color = appData.mainVision.color || '#FFD6E0';
+                for(const r of radios) { if(r.value === color) r.checked = true; }
+
+            } else if (goalId) {
+                // 通常目標の編集
+                modalTitle.textContent = "目標を編集";
+                const goal = appData.goals.find(g => g.id === goalId);
+                if (goal) {
+                    textInput.value = goal.text;
+                    if (goal.image) {
+                        imgPreview.src = goal.image;
+                        imgPreview.classList.remove('hidden');
+                    }
+                    const color = goal.color || '#D7ECD9';
+                    for(const r of radios) { if(r.value === color) r.checked = true; }
+                }
+            } else {
+                // 新規作成
+                modalTitle.textContent = "新しい目標";
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('goal-modal').classList.add('hidden');
+        }
+
+        // 画像圧縮処理
+        function handleImageUpload(input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const maxWidth = 600;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > maxWidth) {
+                            height *= maxWidth / width;
+                            width = maxWidth;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                        const preview = document.getElementById('preview-image');
+                        preview.src = dataUrl;
+                        preview.classList.remove('hidden');
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function saveGoal() {
+            const text = document.getElementById('goal-text').value.trim();
+            const imageSrc = document.getElementById('preview-image').src;
+            const hasImage = !document.getElementById('preview-image').classList.contains('hidden');
+            
+            const radios = document.getElementsByName('goal-color');
+            let selectedColor = '#FFD6E0';
+            for(const r of radios) { if(r.checked) selectedColor = r.value; }
+            
+            // 画像のみでもOKにする
+            if (!text && !hasImage) {
+                alert("文字または画像を入力してください");
+                return;
+            }
+
+            if (editingGoalId === 'main') {
+                // メインビジョンの保存
+                appData.mainVision = {
+                    text: text || "", // 画像のみの場合はテキスト空
+                    image: hasImage ? imageSrc : null,
+                    color: selectedColor
+                };
+
+            } else if (editingGoalId) {
+                // 更新
+                const goal = appData.goals.find(g => g.id === editingGoalId);
+                goal.text = text;
+                goal.image = hasImage ? imageSrc : null;
+                goal.color = selectedColor;
+            } else {
+                // 新規作成
+                const newGoal = {
+                    id: Date.now().toString(),
+                    text: text,
+                    image: hasImage ? imageSrc : null,
+                    status: 'active',
+                    color: selectedColor,
+                    position: null,
+                    createdAt: new Date().toISOString(),
+                    achievedAt: null
+                };
+                appData.goals.unshift(newGoal);
+            }
+
+            saveData();
+            renderGoals();
+            if(currentTab === 'map') renderMap();
+            closeModal();
+        }
+
+        function deleteGoal(id) {
+            if (confirm("本当に削除しますか？")) {
+                appData.goals = appData.goals.filter(g => g.id !== id);
+                saveData();
+                renderGoals();
+                if(currentTab === 'map') renderMap();
+                renderAchieved();
+            }
+        }
+
+        function toggleComplete(id) {
+            const goal = appData.goals.find(g => g.id === id);
+            if (goal) {
+                if (goal.status === 'active') {
+                    goal.status = 'achieved';
+                    goal.achievedAt = new Date().toISOString();
+                    triggerConfetti();
+                } else {
+                    goal.status = 'active';
+                    goal.achievedAt = null;
+                }
+                saveData();
+                
+                setTimeout(() => {
+                    renderGoals();
+                    if(currentTab === 'map') renderMap();
+                    renderAchieved();
+                }, 500);
+            }
+        }
+
+        // --- アファメーション機能 ---
+        function submitAffirmation() {
+            const input = document.getElementById('affirmation-input');
+            const text = input.value.trim();
+            
+            if (!text) return;
+
+            const affirmation = {
+                id: Date.now().toString(),
+                text: text,
+                createdAt: new Date().toISOString()
+            };
+
+            appData.affirmations.unshift(affirmation);
+            saveData();
+            renderAffirmations();
+            triggerSparkle();
+            input.value = "";
+        }
+
+        function editAffirmation(id, newText) {
+            const aff = appData.affirmations.find(a => a.id === id);
+            if (aff) {
+                aff.text = newText;
+                saveData();
+            }
+        }
+
+        function deleteAffirmation(id) {
+            if(confirm("削除しますか？")) {
+                appData.affirmations = appData.affirmations.filter(a => a.id !== id);
+                saveData();
+                renderAffirmations();
+            }
+        }
+
+        // --- レンダリング関数 ---
+
+        function renderGoals() {
+            const list = document.getElementById('goals-list');
+            const activeGoals = appData.goals.filter(g => g.status === 'active');
+            
+            if (activeGoals.length === 0) {
+                list.innerHTML = `<div class="text-center text-gray-400 mt-10"><p>まだ目標がありません。<br>右下の＋ボタンで追加しましょう。</p></div>`;
+                return;
+            }
+            list.innerHTML = activeGoals.map(goal => createGoalCard(goal)).join('');
+        }
+
+        function renderMap() {
+            const activeGoals = appData.goals.filter(g => g.status === 'active');
+            const container = document.getElementById('map-nodes-container');
+            const mapContainer = document.getElementById('map-container');
+            
+            container.innerHTML = '';
+            
+            const rect = mapContainer.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            // --- 中心ノード (Main Vision) の描画 ---
+            const centerNode = document.createElement('div');
+            centerNode.className = 'map-node map-center';
+            centerNode.style.backgroundColor = appData.mainVision.color;
+            
+            // 画像があれば背景に設定してテキストは表示しない（または見えなくする）
+            if (appData.mainVision.image) {
+                centerNode.style.backgroundImage = `url(${appData.mainVision.image})`;
+                centerNode.classList.add('has-image');
+            } else {
+                centerNode.innerText = appData.mainVision.text;
+                centerNode.style.color = '#555'; // テキスト色
+            }
+            
+            centerNode.onclick = () => openModal('main'); // メインビジョン編集
+            container.appendChild(centerNode);
+
+            // --- 周辺ノードの描画 ---
+            let radius = Math.min(rect.width, rect.height) / 2 - 60;
+            if (radius < 100) radius = 100;
+            const count = activeGoals.length;
+            const angleStep = (2 * Math.PI) / (count || 1);
+
+            activeGoals.forEach((goal, index) => {
+                const node = document.createElement('div');
+                node.className = 'map-node map-leaf';
+                node.style.backgroundColor = goal.color || '#D7ECD9';
+
+                // 画像がある場合の処理
+                if (goal.image) {
+                    node.style.backgroundImage = `url(${goal.image})`;
+                    node.classList.add('has-image');
+                    // 画像があるときはテキストを表示しない（classでcolor:transparent）
+                }
+                
+                // テキスト（画像がある場合は透明になる）
+                node.innerText = goal.text;
+
+                // 位置の決定
+                let x, y;
+                if (goal.position && typeof goal.position.x === 'number') {
+                    x = goal.position.x;
+                    y = goal.position.y;
+                } else {
+                    const angle = index * angleStep - (Math.PI / 2);
+                    const nodeCX = centerX + Math.cos(angle) * radius;
+                    const nodeCY = centerY + Math.sin(angle) * radius;
+                    x = nodeCX - 45;
+                    y = nodeCY - 45;
+                }
+
+                node.style.left = `${x}px`;
+                node.style.top = `${y}px`;
+
+                addDragHandlers(node, goal.id);
+                container.appendChild(node);
+            });
+        }
+
+        // ドラッグ & ドロップ実装
+        function addDragHandlers(element, goalId) {
+            let isDragging = false;
+            let startX, startY;
+            let initialLeft, initialTop;
+            let dragThreshold = 5; 
+            let movedDistance = 0;
+
+            element.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                movedDistance = 0;
+                startX = e.clientX;
+                startY = e.clientY;
+                initialLeft = element.offsetLeft;
+                initialTop = element.offsetTop;
+                element.setPointerCapture(e.pointerId);
+                element.style.zIndex = 100;
+            });
+
+            element.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                movedDistance = Math.sqrt(dx*dx + dy*dy);
+                element.style.left = `${initialLeft + dx}px`;
+                element.style.top = `${initialTop + dy}px`;
+            });
+
+            element.addEventListener('pointerup', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                element.releasePointerCapture(e.pointerId);
+                element.style.zIndex = ""; 
+
+                if (movedDistance < dragThreshold) {
+                    openModal(goalId);
+                } else {
+                    const goal = appData.goals.find(g => g.id === goalId);
+                    if (goal) {
+                        goal.position = { x: element.offsetLeft, y: element.offsetTop };
+                        saveData();
+                    }
+                }
+            });
+            
+            element.addEventListener('touchstart', (e) => {}, {passive: false});
+        }
+        
+        window.addEventListener('resize', () => {
+            if(currentTab === 'map') renderMap();
+        });
+
+        function renderAchieved() {
+            const list = document.getElementById('achieved-list');
+            const achievedGoals = appData.goals
+                .filter(g => g.status === 'achieved')
+                .sort((a, b) => new Date(b.achievedAt) - new Date(a.achievedAt));
+
+            if (achievedGoals.length === 0) {
+                list.innerHTML = `<div class="text-center text-gray-400 mt-10"><p>達成した目標はここに表示されます。<br>夢を叶えましょう！</p></div>`;
+                return;
+            }
+            list.innerHTML = achievedGoals.map(goal => createGoalCard(goal, true)).join('');
+        }
+
+        function createGoalCard(goal, isAchieved = false) {
+            const dateStr = isAchieved 
+                ? `達成: ${new Date(goal.achievedAt).toLocaleDateString()}`
+                : `作成: ${new Date(goal.createdAt).toLocaleDateString()}`;
+
+            const imageHtml = goal.image 
+                ? `<div class="h-32 w-full bg-gray-100 rounded-lg mb-3 overflow-hidden relative">
+                     <img src="${goal.image}" class="w-full h-full object-cover">
+                   </div>`
+                : '';
+
+            const checkBtn = isAchieved
+                ? `<button onclick="toggleComplete('${goal.id}')" class="text-green-400 hover:text-green-500 p-2" title="未達成に戻す"><i class="fa-solid fa-rotate-left"></i></button>`
+                : `<button onclick="toggleComplete('${goal.id}')" class="w-8 h-8 rounded-full border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition flex items-center justify-center group" title="達成！">
+                     <i class="fa-solid fa-check text-white group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition"></i>
+                   </button>`;
+
+            const editBtn = !isAchieved 
+                ? `<button onclick="openModal('${goal.id}')" class="text-gray-300 hover:text-indigo-400 p-2"><i class="fa-solid fa-pen"></i></button>` 
+                : '';
+                
+            const borderColor = goal.color || '#e5e7eb';
+            const borderStyle = isAchieved ? '' : `border-left: 5px solid ${borderColor};`;
+
+            // テキストがない（画像のみ）場合の表示調整
+            const displayText = goal.text ? escapeHtml(goal.text) : '<span class="text-gray-400 text-sm italic">(画像のみの目標)</span>';
+
+            return `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition transform hover:shadow-md" style="${borderStyle}">
+                    ${imageHtml}
+                    <div class="flex items-start gap-3">
+                        <div class="mt-1">${checkBtn}</div>
+                        <div class="flex-1">
+                            <p class="font-bold text-gray-700 text-lg leading-relaxed ${isAchieved ? 'line-through text-gray-400' : ''}">${displayText}</p>
+                            <p class="text-xs text-gray-400 mt-1">${dateStr}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            ${editBtn}
+                            <button onclick="deleteGoal('${goal.id}')" class="text-gray-300 hover:text-red-400 p-2"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAffirmations() {
+            const list = document.getElementById('affirmation-history');
+            
+            if (appData.affirmations.length === 0) {
+                list.innerHTML = `<div class="text-center text-gray-400 mt-10"><p>ポジティブな言葉を<br>書き留めましょう。</p></div>`;
+                return;
+            }
+
+            list.innerHTML = appData.affirmations.map(aff => `
+                <div class="bg-white/60 backdrop-blur-sm rounded-xl p-3 shadow-sm border border-white flex justify-between items-center group">
+                    <div class="flex-1">
+                        <p contenteditable="true" onblur="editAffirmation('${aff.id}', this.innerText)" 
+                           class="text-gray-700 font-medium focus:outline-none focus:bg-white focus:ring-1 focus:ring-indigo-200 rounded px-1 transition">
+                            ${escapeHtml(aff.text)}
+                        </p>
+                    </div>
+                    <button onclick="deleteAffirmation('${aff.id}')" class="ml-2 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-2">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            if(!text) return "";
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // --- 演出ロジック ---
+
+        function triggerSparkle() {
+            const colors = ['#FFD700', '#FFFACD', '#E0FFFF', '#FF69B4'];
+            for (let i = 0; i < 30; i++) {
+                const sparkle = document.createElement('div');
+                sparkle.classList.add('sparkle');
+                
+                const startX = Math.random() * window.innerWidth;
+                const size = Math.random() * 8 + 4;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                sparkle.style.left = `${startX}px`;
+                sparkle.style.bottom = '-20px';
+                sparkle.style.width = `${size}px`;
+                sparkle.style.height = `${size}px`;
+                sparkle.style.backgroundColor = color;
+                sparkle.style.boxShadow = `0 0 ${size*2}px ${color}`;
+                
+                const duration = 1 + Math.random();
+                sparkle.style.animationDuration = `${duration}s`;
+
+                document.body.appendChild(sparkle);
+                setTimeout(() => sparkle.remove(), duration * 1000);
+            }
+        }
+
+        function triggerConfetti() {
+            const colors = ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA']; // パステルコンフェッティ
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                
+                const startX = Math.random() * window.innerWidth;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                confetti.style.left = `${startX}px`;
+                confetti.style.top = '-10px';
+                confetti.style.backgroundColor = color;
+                
+                confetti.style.width = `${Math.random() * 10 + 5}px`;
+                confetti.style.height = `${Math.random() * 6 + 3}px`;
+                
+                const duration = 2 + Math.random() * 2;
+                confetti.style.animationDuration = `${duration}s`;
+                
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), duration * 1000);
+            }
+        }
+
+        // --- ランダムメッセージ機能 ---
+        function showDailyMessage() {
+            if (appData.affirmations.length > 0) {
+                const randomIndex = Math.floor(Math.random() * appData.affirmations.length);
+                const message = appData.affirmations[randomIndex].text;
+                document.getElementById('daily-message-text').textContent = message;
+                document.getElementById('daily-message-modal').classList.remove('hidden');
+            }
+        }
+
+        function closeDailyMessage() {
+            document.getElementById('daily-message-modal').classList.add('hidden');
+        }
+
+        // --- スライドショー機能 ---
+        let slideshowInterval = null;
+        let slideIndex = 0;
+
+        function startSlideshow() {
+            const activeGoals = appData.goals.filter(g => g.status === 'active');
+            
+            if (activeGoals.length === 0) {
+                alert("表示する目標がありません");
+                return;
+            }
+
+            document.getElementById('slideshow-overlay').classList.remove('hidden');
+            slideIndex = 0;
+            showSlide(activeGoals);
+
+            slideshowInterval = setInterval(() => {
+                slideIndex = (slideIndex + 1) % activeGoals.length;
+                showSlide(activeGoals);
+            }, 3500); 
+        }
+
+        function showSlide(goals) {
+            const goal = goals[slideIndex];
+            const imgEl = document.getElementById('slide-img');
+            const textEl = document.getElementById('slide-text');
+
+            imgEl.style.opacity = 0;
+            textEl.style.opacity = 0;
+
+            setTimeout(() => {
+                if (goal.image) {
+                    imgEl.src = goal.image;
+                    imgEl.style.display = 'block';
+                } else {
+                    imgEl.style.display = 'none'; 
+                    document.getElementById('slideshow-container').style.background = getRandomGradient();
+                }
+                textEl.innerText = goal.text;
+
+                if (goal.image) imgEl.style.opacity = 0.6; 
+                textEl.style.opacity = 1;
+            }, 500); 
+        }
+
+        function stopSlideshow() {
+            clearInterval(slideshowInterval);
+            document.getElementById('slideshow-overlay').classList.add('hidden');
+        }
+
+        function getRandomGradient() {
+            const gradients = [
+                'linear-gradient(to right, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)',
+                'linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%)',
+                'linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%)',
+                'linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%)'
+            ];
+            return gradients[Math.floor(Math.random() * gradients.length)];
+        }
+
+        window.onload = loadData;
+
+    </script>
+</body>
+</html>
