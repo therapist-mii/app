@@ -119,6 +119,11 @@
             width: 90%; max-height: 150px; overflow-y: auto; z-index: 10;
         }
         .suggestion-item { padding: 10px; border-bottom: 1px solid #eee; }
+
+        /* Status Message */
+        #status-msg {
+            font-size: 12px; color: #888; text-align: right; margin-bottom: 4px; height: 1.2em;
+        }
     </style>
 </head>
 <body>
@@ -129,6 +134,7 @@
     <div id="app" class="container">
         <!-- HOME -->
         <section id="view-home">
+            <div id="status-msg"></div>
             <div class="input-area">
                 <textarea id="main-input" placeholder="今、何を考えてる？"></textarea>
                 <div class="btn-group">
@@ -154,7 +160,13 @@
             <div id="b-list"></div>
             <hr>
             <button onclick="exportBData()"><i data-lucide="share-2"></i> AI分析用出力</button>
-            <button onclick="downloadBackup()" style="margin-top:10px; background:#eee; color:#333;">バックアップ(CSV)保存</button>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="downloadBackup()" style="flex:1; background:#eee; color:#333;">バックアップ保存</button>
+                <label style="flex:1; background:#eee; color:#333; display:flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; font-weight:bold; font-size:14px;">
+                    データ読込
+                    <input type="file" onchange="importBackup(this)" style="display:none;" accept=".json">
+                </label>
+            </div>
         </section>
     </div>
 
@@ -269,7 +281,12 @@
             db.createObjectStore("actions", { keyPath: "id" });
             db.createObjectStore("insights", { keyPath: "id" });
         };
-        dbRequest.onsuccess = (e) => { db = e.target.result; renderALane(); renderBLane(); };
+        dbRequest.onsuccess = (e) => { 
+            db = e.target.result; 
+            renderALane(); 
+            renderBLane(); 
+            initDraftSystem(); // ドラフト復元
+        };
 
         function switchView(view) {
             document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
@@ -279,6 +296,34 @@
             lucide.createIcons();
             if(view === 'a') renderALane();
             if(view === 'b') renderBLane();
+        }
+
+        // --- Draft System (Auto Save) ---
+        const DRAFT_KEY = 'focus_lane_draft';
+        
+        function initDraftSystem() {
+            const input = document.getElementById('main-input');
+            const status = document.getElementById('status-msg');
+            
+            // 復元
+            const savedDraft = localStorage.getItem(DRAFT_KEY);
+            if (savedDraft) {
+                input.value = savedDraft;
+                status.innerText = "書きかけのメモを復元しました";
+                setTimeout(() => status.innerText = "", 3000);
+            }
+
+            // 自動保存リスナー
+            input.addEventListener('input', (e) => {
+                localStorage.setItem(DRAFT_KEY, e.target.value);
+                status.innerText = "保存中...";
+                setTimeout(() => status.innerText = "", 1000);
+            });
+        }
+
+        function clearDraft() {
+            localStorage.removeItem(DRAFT_KEY);
+            document.getElementById('main-input').value = "";
         }
 
         // --- A-Lane Logic ---
@@ -299,7 +344,8 @@
             };
             const tx = db.transaction("actions", "readwrite");
             tx.objectStore("actions").add(item);
-            document.getElementById('main-input').value = "";
+            
+            clearDraft(); // 保存完了したらドラフト消去
             // alertなしでスムーズに
         }
 
@@ -409,7 +455,8 @@
             const item = { id: crypto.randomUUID(), title, content, emotion, createdAt: Date.now() };
             const tx = db.transaction("insights", "readwrite");
             tx.objectStore("insights").add(item);
-            document.getElementById('main-input').value = "";
+            
+            clearDraft(); // 保存完了したらドラフト消去
             hideInsightModal();
         }
 
@@ -505,6 +552,33 @@
             a.href = url;
             a.download = `focus_lane_backup_${Date.now()}.json`;
             a.click();
+        }
+        
+        // --- Import Backup ---
+        function importBackup(input) {
+            const file = input.files[0];
+            if(!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if(data.actions) {
+                        const tx = db.transaction("actions", "readwrite");
+                        data.actions.forEach(item => tx.objectStore("actions").put(item));
+                    }
+                    if(data.insights) {
+                        const tx = db.transaction("insights", "readwrite");
+                        data.insights.forEach(item => tx.objectStore("insights").put(item));
+                    }
+                    alert("インポートが完了しました");
+                    renderALane();
+                    renderBLane();
+                } catch(err) {
+                    alert("ファイルの読み込みに失敗しました: " + err);
+                }
+            };
+            reader.readAsText(file);
         }
 
         lucide.createIcons();
