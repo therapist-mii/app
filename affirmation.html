@@ -402,6 +402,14 @@
         function switchTab(tabName) {
             currentTab = tabName;
             
+            // マップ画面のときは、画面の幅制限(max-w-md)を解除して広く使う
+            const mainContainer = document.getElementById('main-container');
+            if (tabName === 'map') {
+                mainContainer.classList.remove('max-w-md'); // 制限解除
+            } else {
+                mainContainer.classList.add('max-w-md'); // 制限適用（リストなどは幅を抑える）
+            }
+
             // タブスタイルの切り替え
             ['goals', 'map', 'achieved', 'affirmation'].forEach(t => {
                 const btn = document.getElementById(`tab-${t}`);
