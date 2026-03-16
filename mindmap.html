@@ -2,640 +2,388 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>願いのマップ</title>
   
-  <!-- Tailwind CSS -->
+  <!-- iOS向け設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="願いのマップ">
+  
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
-  <!-- Babel (ブラウザ内でReactのJSXを変換するため) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
-  <!-- Firebase (ES Modules) -->
-  <script type="importmap">
-    {
-      "imports": {
-        "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
-        "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
-      }
-    }
-  </script>
-
   <style>
-    /* スクロールバーを隠すためのカスタムスタイル */
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
+    body {
+      background-color: #fafafa;
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    .no-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
+    .map-canvas {
+      touch-action: none; /* ドラッグ時のスクロールを無効化 */
     }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
+
+  <script>
+    // ホーム画面追加用のアイコン(✨)とマニフェストを動的生成
+    (function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 192; canvas.height = 192;
+      const ctx = canvas.getContext('2d');
+      // パステルイエローの背景
+      ctx.fillStyle = '#fdfd96';
+      ctx.beginPath(); ctx.roundRect(0, 0, 192, 192, 40); ctx.fill();
+      // ✨アイコン
+      ctx.font = '96px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✨', 96, 104);
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      const appleIcon = document.createElement('link');
+      appleIcon.rel = 'apple-touch-icon'; appleIcon.href = dataUrl;
+      document.head.appendChild(appleIcon);
+
+      const favicon = document.createElement('link');
+      favicon.rel = 'icon'; favicon.href = dataUrl;
+      document.head.appendChild(favicon);
+
+      const manifest = {
+        name: "願いのマップ", short_name: "願いのマップ",
+        display: "standalone", background_color: "#fafafa", theme_color: "#fdfd96",
+        icons: [{ src: dataUrl, sizes: "192x192", type: "image/png" }]
+      };
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+      document.head.appendChild(manifestLink);
+    })();
+  </script>
 </head>
-<body class="bg-[#f8f9fa] text-gray-800 m-0 p-0 overflow-hidden">
-  
-  <!-- ここにReactアプリが表示されます -->
+<body>
   <div id="root"></div>
 
-  <!-- Reactアプリの本体コード -->
-  <script type="text/babel" data-type="module">
+  <script type="text/babel">
     const { useState, useEffect, useRef } = React;
-    import { initializeApp } from 'firebase/app';
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-    import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
-    // --- アイコンのSVG定義 (外部ライブラリの代わりにインラインで定義) ---
-    const Plus = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
-    const ImageIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
-    const Type = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>;
-    const X = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
-    const Settings2 = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="7" r="3"/><circle cx="7" cy="17" r="3"/></svg>;
-    const Trash2 = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
-
-    // --- パステルカラーのパレット ---
+    // --- 設定・定数 ---
+    const STORAGE_KEY = 'wish_map_data';
     const PASTEL_COLORS = [
-      '#ffffff', // 白
-      '#ffe4e1', // ピンク系
-      '#ffb3ba', // 濃いめピンク
-      '#ffdfba', // オレンジ系
-      '#ffffba', // イエロー系
-      '#baffc9', // グリーン系
-      '#bae1ff', // ブルー系
-      '#e6e6fa', // パープル系（ラベンダー）
-      '#f5f5dc', // ベージュ系
+      '#ffffff', '#ffe4e1', '#ffb6c1', '#ffc0cb', '#ffb3ba', 
+      '#ffdfba', '#ffb347', '#ffffba', '#fdfd96', '#baffc9', 
+      '#77dd77', '#bae1ff', '#aec6cf', '#e6e6fa', '#b19cd9'
     ];
 
-    // --- Firebase Initialization ---
-    // ローカルで単独で開いた際にエラーにならないようダミー設定を含めます
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-      apiKey: "dummy-key",
-      authDomain: "dummy.firebaseapp.com",
-      projectId: "dummy-project",
-      storageBucket: "dummy.appspot.com",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:abcdef"
-    };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    // --- アイコンコンポーネント ---
+    const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+    const IconText = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>;
+    const IconImage = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>;
+    const IconEdit = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>;
 
-    // --- PWA Manifest Injection ---
-    const injectManifest = () => {
-      if (document.getElementById('pwa-manifest')) return;
-      const manifest = {
-        name: "願いのマップ",
-        short_name: "願いのマップ",
-        start_url: ".",
-        display: "standalone",
-        background_color: "#f8f9fa",
-        theme_color: "#f8f9fa",
-        icons: [{
-          src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E✨%3C/text%3E%3C/svg%3E",
-          sizes: "192x192",
-          type: "image/svg+xml"
-        }]
-      };
-      const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-      const manifestURL = URL.createObjectURL(blob);
-      const link = document.createElement('link');
-      link.id = 'pwa-manifest';
-      link.rel = 'manifest';
-      link.href = manifestURL;
-      document.head.appendChild(link);
-    };
-
-    // --- 画像圧縮ユーティリティ ---
-    const compressImage = (file) => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_SIZE = 400; 
-            let width = img.width;
-            let height = img.height;
-            
-            if (width > height) {
-              if (width > MAX_SIZE) {
-                height *= MAX_SIZE / width;
-                width = MAX_SIZE;
-              }
-            } else {
-              if (height > MAX_SIZE) {
-                width *= MAX_SIZE / height;
-                height = MAX_SIZE;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.6));
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
-    };
-
-    // --- メインコンポーネント ---
-    function App() {
-      const [user, setUser] = useState(null);
-      const [tabs, setTabs] = useState([]);
-      const [items, setItems] = useState([]);
-      const [activeTabId, setActiveTabId] = useState('default');
-      const [isLoading, setIsLoading] = useState(true);
-      const [isLocalMode, setIsLocalMode] = useState(false);
-
-      const [textModalConfig, setTextModalConfig] = useState({ isOpen: false, item: null });
-      const [imageModalConfig, setImageModalConfig] = useState({ isOpen: false, item: null });
-      const [tabModalOpen, setTabModalOpen] = useState(false);
-      const [newTabName, setNewTabName] = useState('');
-
-      useEffect(() => {
-        injectManifest();
-
-        const initAuth = async () => {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-              await signInAnonymously(auth);
-            }
-          } catch (err) {
-            console.warn("Auth Error (ローカル実行の場合は無視してください):", err);
-            setIsLocalMode(true);
-            setIsLoading(false); // ローカル実行時でも画面が見えるように
-          }
-        };
-        initAuth();
-
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-          setUser(currentUser);
-          if (!currentUser) setIsLoading(false);
-        });
-        return () => unsubscribe();
-      }, []);
-
-      useEffect(() => {
-        if (!user) {
-          // Firebase未接続(ローカル実行時)のフォールバックUI
-          if (tabs.length === 0) {
-            setTabs([{ id: 'default', name: '願い(ローカル)', createdAt: Date.now() }]);
-          }
-          return;
-        }
-
-        const tabsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'mapTabs');
-        const unsubTabs = onSnapshot(tabsRef, (snapshot) => {
-          const fetchedTabs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          if (fetchedTabs.length === 0) {
-            const defaultTab = { id: 'default', name: '願い', createdAt: Date.now() };
-            setDoc(doc(tabsRef, 'default'), defaultTab);
-            setTabs([defaultTab]);
-          } else {
-            fetchedTabs.sort((a, b) => a.createdAt - b.createdAt);
-            setTabs(fetchedTabs);
-          }
-        }, (error) => console.error("Tabs fetch error:", error));
-
-        const itemsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'mapItems');
-        const unsubItems = onSnapshot(itemsRef, (snapshot) => {
-          const fetchedItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setItems(fetchedItems);
-          setIsLoading(false);
-        }, (error) => console.error("Items fetch error:", error));
-
-        return () => {
-          unsubTabs();
-          unsubItems();
-        };
-      }, [user]);
-
-      const saveItem = async (itemData) => {
-        if (!user) {
-          // ローカルでの簡易追加（リロードで消えます）
-          setItems(prev => {
-            const exists = prev.find(i => i.id === itemData.id);
-            if(exists) return prev.map(i => i.id === itemData.id ? itemData : i);
-            return [...prev, itemData];
-          });
-          return;
-        }
-        const itemsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'mapItems');
-        const docRef = doc(itemsRef, itemData.id);
-        await setDoc(docRef, itemData);
-      };
-
-      const deleteItem = async (itemId) => {
-        if (!user) {
-          setItems(prev => prev.filter(i => i.id !== itemId));
-          return;
-        }
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'mapItems', itemId));
-      };
-
-      const addTab = async () => {
-        if (!newTabName.trim()) return;
-        const newId = crypto.randomUUID();
-        
-        if (!user) {
-          setTabs(prev => [...prev, { id: newId, name: newTabName.trim(), createdAt: Date.now() }]);
-          setNewTabName('');
-          setTabModalOpen(false);
-          setActiveTabId(newId);
-          return;
-        }
-
-        const tabsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'mapTabs');
-        await setDoc(doc(tabsRef, newId), { id: newId, name: newTabName.trim(), createdAt: Date.now() });
-        setNewTabName('');
-        setTabModalOpen(false);
-        setActiveTabId(newId);
-      };
-
-      const handleImageUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const base64Image = await compressImage(file);
-        const newItem = {
-          id: crypto.randomUUID(),
-          tabId: activeTabId,
-          type: 'image',
-          src: base64Image,
-          size: 100,
-          x: window.innerWidth / 2 - 50,
-          y: window.innerHeight / 2 - 50,
-          zIndex: Date.now(),
-        };
-        await saveItem(newItem);
-        e.target.value = ''; 
-      };
-
-      if (isLoading) {
-        return <div className="h-screen w-full bg-[#f8f9fa] flex items-center justify-center text-gray-400">読み込み中...</div>;
-      }
-
-      const currentItems = items.filter(item => item.tabId === activeTabId).sort((a, b) => a.zIndex - b.zIndex);
-
-      return (
-        <div className="h-screen w-full bg-[#f8f9fa] flex flex-col overflow-hidden font-sans text-gray-800">
-          {isLocalMode && (
-            <div className="bg-amber-100 text-amber-800 text-xs px-2 py-2 text-center z-50 border-b border-amber-200">
-              ⚠️ ローカル環境のためデータは保存されません。保存機能を使うには右側の「Preview」から開いてください。
-            </div>
-          )}
-          <header className="bg-white/80 backdrop-blur-md shadow-sm z-10 sticky top-0 px-2 py-3">
-            <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTabId(tab.id)}
-                  className={`whitespace-nowrap px-4 py-2 rounded-full font-medium transition-colors ${
-                    activeTabId === tab.id 
-                      ? 'bg-pink-100 text-pink-800 shadow-sm' 
-                      : 'bg-white text-gray-500 border border-gray-100'
-                  }`}
-                >
-                  {tab.name}
-                </button>
-              ))}
-              <button 
-                onClick={() => setTabModalOpen(true)}
-                className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 border border-dashed border-gray-300"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-          </header>
-
-          <main className="flex-1 relative w-full h-full overflow-hidden touch-none" id="map-canvas">
-            {currentItems.map(item => (
-              <DraggableItem 
-                key={item.id} 
-                item={item} 
-                onSave={saveItem}
-                onClick={() => {
-                  if (item.type === 'text') setTextModalConfig({ isOpen: true, item });
-                  if (item.type === 'image') setImageModalConfig({ isOpen: true, item });
-                }}
-              />
-            ))}
-            {currentItems.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <p className="text-gray-400 text-sm text-center px-8 leading-relaxed">
-                  下のボタンから、あなたの想いや<br/>お気に入りの写真を追加しましょう
-                </p>
-              </div>
-            )}
-          </main>
-
-          <div className="absolute bottom-6 right-6 flex flex-col space-y-4 z-10">
-            <label className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center text-blue-400 cursor-pointer hover:bg-gray-50 transition-transform active:scale-95">
-              <ImageIcon size={24} />
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-            </label>
-            <button 
-              onClick={() => setTextModalConfig({ isOpen: true, item: null })}
-              className="w-14 h-14 bg-pink-300 rounded-full shadow-lg flex items-center justify-center text-white hover:bg-pink-400 transition-transform active:scale-95"
-            >
-              <Type size={24} />
-            </button>
-          </div>
-
-          <TextModal 
-            config={textModalConfig} 
-            onClose={() => setTextModalConfig({ isOpen: false, item: null })}
-            onSave={(data) => {
-              if (data.id) {
-                saveItem({ ...data, zIndex: Date.now() }); 
-              } else {
-                saveItem({
-                  id: crypto.randomUUID(),
-                  tabId: activeTabId,
-                  type: 'text',
-                  x: window.innerWidth / 2 - 80,
-                  y: window.innerHeight / 2 - 40,
-                  zIndex: Date.now(),
-                  ...data
-                });
-              }
-              setTextModalConfig({ isOpen: false, item: null });
-            }}
-            onDelete={(id) => {
-              deleteItem(id);
-              setTextModalConfig({ isOpen: false, item: null });
-            }}
-          />
-
-          <ImageModal
-            config={imageModalConfig}
-            onClose={() => setImageModalConfig({ isOpen: false, item: null })}
-            onSave={(data) => {
-              saveItem({ ...data, zIndex: Date.now() });
-              setImageModalConfig({ isOpen: false, item: null });
-            }}
-            onDelete={(id) => {
-              deleteItem(id);
-              setImageModalConfig({ isOpen: false, item: null });
-            }}
-          />
-
-          <AddTabModal
-            isOpen={tabModalOpen}
-            onClose={() => setTabModalOpen(false)}
-            tabName={newTabName}
-            setTabName={setNewTabName}
-            onSave={addTab}
-          />
+    // --- モーダルコンポーネント ---
+    const ModalWrapper = ({ children, onClose }) => (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl transform transition-all" onClick={e => e.stopPropagation()}>
+          {children}
         </div>
-      );
-    }
+      </div>
+    );
 
-    // --- 子コンポーネント ---
-    function DraggableItem({ item, onSave, onClick }) {
-      const [position, setPosition] = useState({ x: item.x, y: item.y });
-      const [isDragging, setIsDragging] = useState(false);
-      const dragStartPos = useRef({ x: 0, y: 0 });
-      const initialElementPos = useRef({ x: 0, y: 0 });
-      const hasMoved = useRef(false);
-
-      useEffect(() => {
-        if (!isDragging) {
-          setPosition({ x: item.x, y: item.y });
-        }
-      }, [item.x, item.y, isDragging]);
-
-      const handlePointerDown = (e) => {
-        setIsDragging(true);
-        hasMoved.current = false;
-        dragStartPos.current = { x: e.clientX, y: e.clientY };
-        initialElementPos.current = { x: position.x, y: position.y };
-        e.target.setPointerCapture(e.pointerId);
-      };
-
-      const handlePointerMove = (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - dragStartPos.current.x;
-        const dy = e.clientY - dragStartPos.current.y;
-        
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-          hasMoved.current = true;
-        }
-
-        setPosition({
-          x: initialElementPos.current.x + dx,
-          y: initialElementPos.current.y + dy
-        });
-      };
-
-      const handlePointerUp = (e) => {
-        if (!isDragging) return;
-        setIsDragging(false);
-        e.target.releasePointerCapture(e.pointerId);
-
-        if (hasMoved.current) {
-          onSave({ ...item, x: position.x, y: position.y, zIndex: Date.now() });
-        } else {
-          onClick();
-        }
-      };
+    // テキスト編集モーダル
+    const TextModal = ({ item, onSave, onClose, onDelete }) => {
+      const [content, setContent] = useState(item ? item.content : '');
+      const [color, setColor] = useState(item ? item.color : '#fdfd96');
 
       return (
-        <div
-          className="absolute cursor-grab active:cursor-grabbing touch-none select-none"
-          style={{
-            left: position.x,
-            top: position.y,
-            zIndex: item.zIndex,
-          }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        >
-          {item.type === 'text' && (
-            <div 
-              className="px-4 py-2 rounded-2xl shadow-sm border border-black/5 whitespace-pre-wrap text-center min-w-[60px]"
-              style={{ backgroundColor: item.color || '#ffffff' }}
-            >
-              {item.text}
-            </div>
-          )}
-          {item.type === 'image' && (
-            <img 
-              src={item.src} 
-              alt="Map Item" 
-              className="rounded-full object-cover shadow-sm pointer-events-none border border-white/50"
-              style={{ width: item.size, height: item.size }}
+        <ModalWrapper onClose={onClose}>
+          <div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700 text-center">{item ? '言葉を編集' : '言葉を追加'}</h3></div>
+          <div className="p-5 space-y-5">
+            <textarea 
+              value={content} onChange={e => setContent(e.target.value)}
+              className="w-full border-2 border-gray-100 rounded-2xl p-4 focus:outline-none focus:border-pink-300 resize-none h-32 text-gray-800"
+              placeholder="あなたの想いや願いを書いてください..."
             />
-          )}
-        </div>
-      );
-    }
-
-    function TextModal({ config, onClose, onSave, onDelete }) {
-      const { isOpen, item } = config;
-      const [text, setText] = useState('');
-      const [color, setColor] = useState(PASTEL_COLORS[0]);
-
-      useEffect(() => {
-        if (isOpen) {
-          setText(item ? item.text : '');
-          setColor(item && item.color ? item.color : PASTEL_COLORS[0]);
-        }
-      }, [isOpen, item]);
-
-      if (!isOpen) return null;
-
-      return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl flex flex-col space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-gray-700">{item ? '言葉を編集' : '新しい言葉'}</h3>
-              <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-100"><X size={20}/></button>
-            </div>
-            
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="今の想いを書いてください..."
-              className="w-full h-32 p-4 rounded-xl resize-none outline-none transition-colors border-2 border-gray-100 focus:border-pink-200"
-              style={{ backgroundColor: color }}
-            />
-
             <div>
-              <p className="text-xs text-gray-500 mb-2 font-medium">背景色</p>
-              <div className="flex flex-wrap gap-2">
+              <label className="block text-sm font-medium text-gray-500 mb-3 text-center">背景カラー</label>
+              <div className="flex flex-wrap justify-center gap-3">
                 {PASTEL_COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setColor(c)}
-                    className={`w-8 h-8 rounded-full border-2 transition-transform active:scale-90 ${color === c ? 'border-gray-400 scale-110 shadow-sm' : 'border-black/5'}`}
+                  <button key={c} onClick={() => setColor(c)}
+                    className={`w-9 h-9 rounded-full border-2 transition-transform ${color === c ? 'border-gray-400 scale-110' : 'border-gray-100'}`}
                     style={{ backgroundColor: c }}
                   />
                 ))}
               </div>
             </div>
-
-            <div className="flex justify-between pt-2">
-              {item ? (
-                <button onClick={() => onDelete(item.id)} className="flex items-center text-red-400 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
-                  <Trash2 size={18} className="mr-1" /> 削除
-                </button>
-              ) : <div></div>}
-              <button 
-                onClick={() => onSave({ ...item, text, color })}
-                disabled={!text.trim()}
-                className="bg-gray-800 text-white px-6 py-2 rounded-full font-medium disabled:opacity-50 active:scale-95 transition-transform"
-              >
-                {item ? '更新' : '追加'}
-              </button>
+          </div>
+          <div className="p-4 bg-gray-50 flex justify-between items-center">
+            {item ? <button onClick={onDelete} className="text-red-400 px-3 py-2 font-bold text-sm">削除</button> : <div></div>}
+            <div className="flex space-x-3">
+              <button onClick={onClose} className="px-4 py-2 text-gray-500 font-bold text-sm rounded-full bg-gray-200">キャンセル</button>
+              <button onClick={() => onSave({ content, color })} disabled={!content.trim()}
+                className="px-6 py-2 bg-pink-400 text-white rounded-full font-bold text-sm shadow-md disabled:opacity-50">保存</button>
             </div>
           </div>
-        </div>
+        </ModalWrapper>
       );
-    }
+    };
 
-    function ImageModal({ config, onClose, onSave, onDelete }) {
-      const { isOpen, item } = config;
-      const [size, setSize] = useState(100);
+    // 画像サイズ編集モーダル
+    const ImageModal = ({ item, onSave, onClose, onDelete }) => {
+      const [size, setSize] = useState(item.size);
+      return (
+        <ModalWrapper onClose={onClose}>
+          <div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700 text-center">写真の調整</h3></div>
+          <div className="p-6 flex flex-col items-center space-y-8">
+            <div className="relative flex items-center justify-center h-48 w-full bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
+               <img src={item.src} style={{ width: size, height: size }} className="rounded-full object-cover shadow-sm transition-all" />
+            </div>
+            <div className="w-full px-4">
+              <div className="flex justify-between text-xs text-gray-400 font-medium mb-2"><span>小さく</span><span>大きく</span></div>
+              <input type="range" min="50" max="250" value={size} onChange={e => setSize(Number(e.target.value))} className="w-full accent-pink-400" />
+            </div>
+          </div>
+          <div className="p-4 bg-gray-50 flex justify-between items-center">
+            <button onClick={onDelete} className="text-red-400 px-3 py-2 font-bold text-sm">削除</button>
+            <div className="flex space-x-3">
+              <button onClick={onClose} className="px-4 py-2 text-gray-500 font-bold text-sm rounded-full bg-gray-200">キャンセル</button>
+              <button onClick={() => onSave({ size })} className="px-6 py-2 bg-pink-400 text-white rounded-full font-bold text-sm shadow-md">決定</button>
+            </div>
+          </div>
+        </ModalWrapper>
+      );
+    };
 
+    // --- メインアプリ ---
+    function App() {
+      // データの初期化
+      const [maps, setMaps] = useState(() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) return JSON.parse(saved);
+        } catch(e) { console.error("データ読み込みエラー"); }
+        return [{ id: 'map_' + Date.now(), name: '願い', items: [] }];
+      });
+      
+      const [activeMapId, setActiveMapId] = useState(maps[0].id);
+      
+      // モーダル状態
+      const [editingText, setEditingText] = useState(null); // { item: null | Item }  (null=追加, Item=編集)
+      const [editingImage, setEditingImage] = useState(null);
+
+      // 保存処理
       useEffect(() => {
-        if (isOpen && item) {
-          setSize(item.size || 100);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(maps)); }
+        catch(e) { alert("保存容量がいっぱいです。不要な写真を削除してください。"); }
+      }, [maps]);
+
+      const activeMap = maps.find(m => m.id === activeMapId) || maps[0];
+
+      // --- マップ操作 ---
+      const handleAddMap = () => {
+        const name = prompt("新しいマップの名前を入力してください", "新しいマップ");
+        if (name && name.trim()) {
+          const newMap = { id: 'map_' + Date.now(), name: name.trim(), items: [] };
+          setMaps([...maps, newMap]);
+          setActiveMapId(newMap.id);
         }
-      }, [isOpen, item]);
+      };
 
-      if (!isOpen || !item) return null;
+      const handleEditMapName = (id, currentName) => {
+        const name = prompt("マップの名前を変更しますか？", currentName);
+        if (name && name.trim()) {
+          setMaps(maps.map(m => m.id === id ? { ...m, name: name.trim() } : m));
+        }
+      };
 
-      return (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-end sm:justify-center p-4 bg-black/20 backdrop-blur-sm pb-10">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl flex flex-col space-y-6 animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-gray-700 flex items-center">
-                <Settings2 size={18} className="mr-2"/> 写真の設定
-              </h3>
-              <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-100"><X size={20}/></button>
-            </div>
+      // --- アイテム操作 ---
+      const updateMapItems = (updater) => {
+        setMaps(maps.map(m => m.id === activeMapId ? { ...m, items: updater(m.items) } : m));
+      };
+
+      const handleSaveText = (data) => {
+        if (editingText.item) {
+          // 更新
+          updateMapItems(items => items.map(i => i.id === editingText.item.id ? { ...i, ...data } : i));
+        } else {
+          // 新規
+          const newItem = {
+            id: 'item_' + Date.now(), type: 'text',
+            x: window.innerWidth / 2, y: window.innerHeight / 2,
+            zIndex: Date.now(), ...data
+          };
+          updateMapItems(items => [...items, newItem]);
+        }
+        setEditingText(null);
+      };
+
+      const handleSaveImage = (data) => {
+        updateMapItems(items => items.map(i => i.id === editingImage.id ? { ...i, ...data } : i));
+        setEditingImage(null);
+      };
+
+      const handleDeleteItem = (id) => {
+        updateMapItems(items => items.filter(i => i.id !== id));
+        setEditingText(null); setEditingImage(null);
+      };
+
+      // --- 画像アップロード ---
+      const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const size = Math.min(img.width, img.height);
+            // 正方形にクロップ＆最大サイズ制限（容量節約）
+            let targetSize = size;
+            if (targetSize > 300) targetSize = 300; 
+            canvas.width = targetSize; canvas.height = targetSize;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, (img.width - size)/2, (img.height - size)/2, size, size, 0, 0, targetSize, targetSize);
             
-            <div className="flex justify-center py-4">
-               <img 
-                src={item.src} 
-                alt="Preview" 
-                className="rounded-full object-cover shadow-sm border border-gray-200 transition-all duration-200"
-                style={{ width: size, height: size }}
-              />
-            </div>
+            const newItem = {
+              id: 'item_' + Date.now(), type: 'image',
+              src: canvas.toDataURL('image/jpeg', 0.8),
+              x: window.innerWidth / 2, y: window.innerHeight / 2,
+              size: 120, zIndex: Date.now()
+            };
+            updateMapItems(items => [...items, newItem]);
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        e.target.value = ''; // リセット
+      };
 
-            <div>
-              <label className="text-sm text-gray-600 mb-2 flex justify-between">
-                <span>サイズ</span>
-                <span className="text-gray-400">{size}px</span>
-              </label>
-              <input 
-                type="range" 
-                min="40" 
-                max="300" 
-                value={size}
-                onChange={(e) => setSize(Number(e.target.value))}
-                className="w-full accent-pink-300 h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
+      // --- ドラッグ＆ドロップ（タッチ操作） ---
+      const [dragInfo, setDragInfo] = useState(null);
+      const [clickStart, setClickStart] = useState(null); // タップ判定用
 
-            <div className="flex justify-between pt-2">
-               <button onClick={() => onDelete(item.id)} className="flex items-center text-red-400 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
-                <Trash2 size={18} className="mr-1" /> 削除
-              </button>
-              <button 
-                onClick={() => onSave({ ...item, size })}
-                className="bg-gray-800 text-white px-6 py-2 rounded-full font-medium active:scale-95 transition-transform"
-              >
-                完了
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
+      const handlePointerDown = (e, item) => {
+        // e.preventDefault(); // これを入れるとテキスト選択ができないが、キャンバス全体にtouch-action:noneをかけているので不要
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        if(clientX == null) return;
 
-    function AddTabModal({ isOpen, onClose, tabName, setTabName, onSave }) {
-      if (!isOpen) return null;
+        setDragInfo({ id: item.id, startX: clientX, startY: clientY, initX: item.x, initY: item.y });
+        setClickStart({ id: item.id, x: clientX, y: clientY, time: Date.now() });
+        // 手前に持ってくる
+        updateMapItems(items => items.map(i => i.id === item.id ? { ...i, zIndex: Date.now() } : i));
+      };
+
+      const handlePointerMove = (e) => {
+        if (!dragInfo) return;
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        if(clientX == null) return;
+
+        const dx = clientX - dragInfo.startX;
+        const dy = clientY - dragInfo.startY;
+        updateMapItems(items => items.map(i => i.id === dragInfo.id ? { ...i, x: dragInfo.initX + dx, y: dragInfo.initY + dy } : i));
+      };
+
+      const handlePointerUp = (e) => {
+        if (dragInfo && clickStart && dragInfo.id === clickStart.id) {
+          const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+          const clientY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+          if (clientX != null) {
+            const dx = clientX - clickStart.x;
+            const dy = clientY - clickStart.y;
+            const dt = Date.now() - clickStart.time;
+            // 移動距離が少なく、短時間なら「タップ」と判定
+            if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 400) {
+              const item = activeMap.items.find(i => i.id === dragInfo.id);
+              if (item.type === 'text') setEditingText({ item });
+              if (item.type === 'image') setEditingImage(item);
+            }
+          }
+        }
+        setDragInfo(null);
+        setClickStart(null);
+      };
+
       return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-xl flex flex-col space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="font-semibold text-gray-700">新しいマップを追加</h3>
-            <input 
-              type="text" 
-              value={tabName}
-              onChange={(e) => setTabName(e.target.value)}
-              placeholder="カテゴリ名 (例: 感謝)"
-              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-pink-300 transition-colors"
-              autoFocus
-            />
-            <div className="flex justify-end space-x-2 pt-2">
-              <button onClick={onClose} className="px-4 py-2 rounded-full text-gray-500 hover:bg-gray-50 font-medium">キャンセル</button>
-              <button 
-                onClick={onSave}
-                disabled={!tabName.trim()}
-                className="px-6 py-2 rounded-full bg-pink-100 text-pink-800 font-medium disabled:opacity-50"
-              >
-                追加
+        <div className="flex flex-col h-screen overflow-hidden relative">
+          
+          {/* タブエリア */}
+          <div className="flex items-center overflow-x-auto bg-white/80 backdrop-blur-md border-b border-gray-100 px-3 py-3 hide-scrollbar z-10 shadow-sm">
+            {maps.map(m => (
+              <button key={m.id} onClick={() => setActiveMapId(m.id)} onDoubleClick={() => handleEditMapName(m.id, m.name)}
+                className={`flex-shrink-0 px-5 py-2 mx-1 rounded-full text-sm font-bold transition-all ${
+                  activeMapId === m.id ? 'bg-pink-100 text-pink-500 shadow-sm' : 'text-gray-400 bg-gray-50 hover:bg-gray-100'
+                }`}>
+                {m.name}
               </button>
-            </div>
+            ))}
+            <button onClick={handleAddMap} className="flex-shrink-0 w-9 h-9 mx-1 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-100 shadow-sm">
+              <IconPlus />
+            </button>
           </div>
+
+          {/* キャンバスエリア */}
+          <div 
+            className="flex-1 map-canvas relative overflow-hidden"
+            onMouseMove={handlePointerMove} onMouseUp={handlePointerUp} onMouseLeave={handlePointerUp}
+            onTouchMove={handlePointerMove} onTouchEnd={handlePointerUp} onTouchCancel={handlePointerUp}
+          >
+            {activeMap.items.map(item => (
+              <div key={item.id}
+                style={{ position: 'absolute', left: item.x, top: item.y, zIndex: item.zIndex || 1, transform: 'translate(-50%, -50%)' }}
+                onMouseDown={e => handlePointerDown(e, item)}
+                onTouchStart={e => handlePointerDown(e, item)}
+                className="cursor-move"
+              >
+                {item.type === 'text' && (
+                  <div style={{ backgroundColor: item.color }} className="whitespace-pre-wrap text-sm sm:text-base px-4 py-2 rounded-2xl shadow-md border border-black/5 text-gray-800 font-medium select-none text-center leading-snug">
+                    {item.content}
+                  </div>
+                )}
+                {item.type === 'image' && (
+                  <img src={item.src} style={{ width: item.size, height: item.size }} className="rounded-full object-cover shadow-lg border-2 border-white pointer-events-none select-none" draggable="false" />
+                )}
+              </div>
+            ))}
+            
+            {/* ガイドメッセージ (アイテムが空の時) */}
+            {activeMap.items.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                <div className="text-center text-gray-400">
+                  <p className="text-lg font-bold mb-2">マップは空です</p>
+                  <p className="text-sm">下のボタンから言葉や写真を追加してください</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ツールバー */}
+          <div className="bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-4 flex justify-around items-center pb-safe z-10 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+            <button onClick={() => setEditingText({ item: null })} className="flex flex-col items-center justify-center text-gray-500 hover:text-pink-400 transition-colors w-20">
+              <div className="bg-gray-50 p-3 rounded-full mb-1 shadow-sm"><IconText /></div>
+              <span className="text-xs font-bold">言葉</span>
+            </button>
+            <label className="flex flex-col items-center justify-center text-gray-500 hover:text-pink-400 transition-colors cursor-pointer w-20">
+              <div className="bg-gray-50 p-3 rounded-full mb-1 shadow-sm"><IconImage /></div>
+              <span className="text-xs font-bold">写真</span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
+          </div>
+
+          {/* モーダル群 */}
+          {editingText && (
+            <TextModal item={editingText.item} onSave={handleSaveText} onClose={() => setEditingText(null)} onDelete={() => handleDeleteItem(editingText.item.id)} />
+          )}
+          {editingImage && (
+            <ImageModal item={editingImage} onSave={handleSaveImage} onClose={() => setEditingImage(null)} onDelete={() => handleDeleteItem(editingImage.id)} />
+          )}
         </div>
       );
     }
 
-    // --- アプリの描画開始 ---
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
