@@ -105,9 +105,13 @@
         const DraggableItem = ({ item, onUpdate, onClick, children }) => {
             const [pos, setPos] = useState({ x: item.x, y: item.y });
             const [isDragging, setIsDragging] = useState(false);
-            const dragRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0, moved: false });
+            const dragRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0, currentX: item.x, currentY: item.y, moved: false });
 
-            useEffect(() => { setPos({ x: item.x, y: item.y }); }, [item.x, item.y]);
+            useEffect(() => { 
+                setPos({ x: item.x, y: item.y }); 
+                dragRef.current.currentX = item.x;
+                dragRef.current.currentY = item.y;
+            }, [item.x, item.y]);
 
             const handleStart = (e) => {
                 e.stopPropagation();
@@ -116,7 +120,13 @@
                 const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
                 
                 dragRef.current = {
-                    startX: clientX, startY: clientY, initX: pos.x, initY: pos.y, moved: false
+                    startX: clientX, 
+                    startY: clientY, 
+                    initX: pos.x, 
+                    initY: pos.y, 
+                    currentX: pos.x,
+                    currentY: pos.y,
+                    moved: false
                 };
             };
 
@@ -133,7 +143,13 @@
                     dragRef.current.moved = true;
                 }
 
-                setPos({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
+                const newX = dragRef.current.initX + dx;
+                const newY = dragRef.current.initY + dy;
+
+                dragRef.current.currentX = newX;
+                dragRef.current.currentY = newY;
+
+                setPos({ x: newX, y: newY });
             };
 
             const handleEnd = (e) => {
@@ -143,7 +159,7 @@
                 if (!dragRef.current.moved) {
                     onClick(item); // 動かしていなければタップ（編集）として扱う
                 } else {
-                    onUpdate(item.id, { x: pos.x, y: pos.y }); // 移動完了時に保存
+                    onUpdate(item.id, { x: dragRef.current.currentX, y: dragRef.current.currentY }); // 移動完了時に最新の座標を保存
                 }
             };
 
