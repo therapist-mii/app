@@ -325,9 +325,27 @@
                 <div className="flex flex-col h-full w-full bg-gray-50 relative">
                     {/* ヘッダー・タブ領域 */}
                     <div className="flex-none bg-white shadow-sm border-b border-gray-100 z-40">
-                        <div className="flex px-4 py-3 items-center text-pink-500 font-bold gap-1">
-                            <span>✨</span>
-                            <span className="text-lg tracking-wide text-gray-700">願いのマップ</span>
+                        <div className="flex px-4 py-3 items-center justify-between text-pink-500 font-bold gap-1">
+                            <div className="flex items-center gap-1">
+                                <span>✨</span>
+                                <span className="text-lg tracking-wide text-gray-700">願いのマップ</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-500 hover:text-pink-500 active:scale-95 transition-all border border-gray-200"
+                                    onClick={() => setTextModal({ isOpen: true, id: null, content: '', color: PASTEL_COLORS[1] })}
+                                    title="テキストを追加"
+                                >
+                                    <TextIcon />
+                                </button>
+                                <label 
+                                    className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-500 hover:text-blue-500 active:scale-95 transition-all border border-gray-200 cursor-pointer"
+                                    title="画像を追加"
+                                >
+                                    <ImageIcon />
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                </label>
+                            </div>
                         </div>
                         <div className="flex overflow-x-auto no-scrollbar px-3 pb-3 items-center">
                             {data.maps.map(m => (
@@ -384,20 +402,6 @@
                                 )}
                             </DraggableItem>
                         ))}
-                    </div>
-
-                    {/* アクションボタン (FAB) */}
-                    <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-40">
-                        <button 
-                            className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-500 hover:text-pink-500 active:scale-95 transition-all border border-gray-100"
-                            onClick={() => setTextModal({ isOpen: true, id: null, content: '', color: PASTEL_COLORS[1] })}
-                        >
-                            <TextIcon />
-                        </button>
-                        <label className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-500 hover:text-blue-500 active:scale-95 transition-all border border-gray-100 cursor-pointer">
-                            <ImageIcon />
-                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                        </label>
                     </div>
 
                     {/* テキスト編集モーダル */}
