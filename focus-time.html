@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>集中タイマー</title>
+    <!-- 時計マークのアイコン（ホーム画面追加用） -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22%23000%22%2F%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2240%22%20fill%3D%22%23000%22%20stroke%3D%22%23fff%22%20stroke-width%3D%226%22%2F%3E%3Cline%20x1%3D%2250%22%20y1%3D%2250%22%20x2%3D%2250%22%20y2%3D%2225%22%20stroke%3D%22%23fff%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2250%22%20y1%3D%2250%22%20x2%3D%2270%22%20y2%3D%2250%22%20stroke%3D%22%23fff%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E">
+    <link rel="icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2245%22%20fill%3D%22black%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%2F%3E%3Cline%20x1%3D%2250%22%20y1%3D%2250%22%20x2%3D%2250%22%20y2%3D%2225%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2250%22%20y1%3D%2250%22%20x2%3D%2270%22%20y2%3D%2250%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E">
+    <!-- 紙吹雪ライブラリの追加 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #000000; /* 省エネのための完全な黒 */
+            color: #ffffff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            touch-action: manipulation; /* ダブルタップズーム防止 */
+        }
+        
+        /* 隠し要素用 */
+        .hidden { display: none !important; }
+        
+        /* ボタンのタップ時のフィードバック */
+        button:active {
+            transform: scale(0.95);
+            transition: transform 0.1s;
+        }
+
+        /* タイムピッカーのスタイル調整 */
+        input[type="number"] {
+            color: #ffffff;
+            background-color: #1a1a1a;
+            border-color: #333;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 設定画面 -->
+    <div id="setup-screen" class="w-full max-w-md flex flex-col items-center gap-8">
+        <div class="text-center">
+            <h1 class="text-3xl font-bold mb-2 text-gray-200">集中タイマー</h1>
+            <p class="text-gray-400 text-sm">時間を設定してください (1〜30分)</p>
+        </div>
+
+        <div class="w-full">
+            <label class="block text-sm font-medium text-gray-400 mb-2">手動入力</label>
+            <div class="flex items-center gap-4">
+                <input type="number" id="custom-time" min="1" max="30" value="15" 
+                       class="w-full text-4xl p-4 rounded-xl border text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <span class="text-2xl text-gray-400">分</span>
+            </div>
+        </div>
+
+        <div class="w-full">
+            <label class="block text-sm font-medium text-gray-400 mb-2">よく使う時間</label>
+            <div class="grid grid-cols-4 gap-3">
+                <button onclick="setCustomTime(2)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold">2分</button>
+                <button onclick="setCustomTime(3)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold">3分</button>
+                <button onclick="setCustomTime(5)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold">5分</button>
+                <button onclick="setCustomTime(10)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold">10分</button>
+                <button onclick="setCustomTime(15)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold">15分</button>
+                <button onclick="setCustomTime(20)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold">20分</button>
+                <button onclick="setCustomTime(30)" class="bg-gray-800 hover:bg-gray-700 py-3 rounded-lg text-lg font-semibold col-span-2">30分</button>
+            </div>
+        </div>
+
+        <button onclick="startTimerSession()" 
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white text-2xl font-bold py-5 rounded-full shadow-lg shadow-blue-900/50 mt-4">
+            スタート
+        </button>
+    </div>
+
+    <!-- タイマー画面 -->
+    <div id="timer-screen" class="w-full max-w-md flex flex-col items-center justify-center gap-8 hidden h-full">
+        <div class="text-center space-y-2">
+            <div id="phase-label" class="text-2xl font-bold text-blue-400 tracking-widest">準備中</div>
+            <div id="phase-desc" class="text-gray-400 text-sm">30秒後に開始します</div>
+        </div>
+
+        <!-- 時計表示部分 -->
+        <div class="relative w-72 h-72 flex items-center justify-center rounded-full border-4 border-gray-800 bg-gray-900/30">
+            <div id="time-display" class="text-7xl font-mono font-light tracking-tighter">00:00</div>
+            <!-- プログレスリング (SVG) -->
+            <svg class="absolute top-0 left-0 w-full h-full transform -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                <circle id="progress-ring" cx="50" cy="50" r="48" fill="none" stroke="#3b82f6" stroke-width="2" 
+                        stroke-dasharray="301.59" stroke-dashoffset="0" class="transition-all duration-200 ease-linear"/>
+            </svg>
+        </div>
+
+        <div class="flex gap-6 mt-10">
+            <button id="pause-btn" onclick="togglePause()" 
+                    class="w-32 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 text-lg font-semibold py-4 rounded-full transition-colors">
+                一時停止
+            </button>
+            <button onclick="stopTimer()" 
+                    class="w-32 bg-red-900/40 text-red-400 border border-red-900/50 hover:bg-red-800/50 text-lg font-semibold py-4 rounded-full transition-colors">
+                終了
+            </button>
+        </div>
+    </div>
+
+    <!-- 終了画面 -->
+    <div id="finish-screen" class="w-full max-w-md flex flex-col items-center justify-center gap-8 hidden h-full min-h-[60vh]">
+        <div class="text-center space-y-4">
+            <div class="text-4xl font-bold text-yellow-400 mb-6">終了しました🎉</div>
+            <div class="text-2xl text-white">お疲れさまでした！</div>
+        </div>
+        
+        <button onclick="resetApp()" 
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 rounded-full shadow-lg shadow-blue-900/50 mt-10">
+            トップに戻る
+        </button>
+    </div>
+
+    <script>
+        const setupScreen = document.getElementById('setup-screen');
+        const timerScreen = document.getElementById('timer-screen');
+        const finishScreen = document.getElementById('finish-screen');
+        const customTimeInput = document.getElementById('custom-time');
+        
+        const phaseLabel = document.getElementById('phase-label');
+        const phaseDesc = document.getElementById('phase-desc');
+        const timeDisplay = document.getElementById('time-display');
+        const progressRing = document.getElementById('progress-ring');
+        const ringCircumference = 2 * Math.PI * 48; // r=48
+
+        // 定数
+        const PREP_SECONDS = 30;
+        const COOLDOWN_SECONDS = 30;
+
+        let currentPhase = 'IDLE'; // IDLE, PREP, FOCUS, COOLDOWN
+        let timerInterval = null;
+        let targetEndTime = 0;
+        let totalPhaseSeconds = 0;
+        let focusTimeSeconds = 0;
+        let wakeLock = null;
+        let lastAnnouncedSecond = -1;
+        let isPaused = false;
+        let pausedTimeLeftMs = 0; // 一時停止した時点での残り時間(ミリ秒)
+
+        /* 音声合成の準備 */
+        const synth = window.speechSynthesis;
+        
+        function setCustomTime(minutes) {
+            customTimeInput.value = minutes;
+        }
+
+        function speak(text) {
+            if (synth.speaking) {
+                synth.cancel(); // 連続で呼ばれた場合、前の音声をキャンセル
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ja-JP';
+            // 少しゆっくりめにすることで、より自然で落ち着いた読み上げにする
+            utterance.rate = 0.95; 
+            utterance.pitch = 1.0;
+            
+            const voices = synth.getVoices();
+            // 1. Googleの日本語音声を最優先で探す (オンラインの高音質音声が期待できる)
+            let jaVoice = voices.find(v => v.lang.includes('ja') && v.name.includes('Google'));
+            
+            // 2. なければ、女性らしい名前の日本語音声を探す
+            if (!jaVoice) {
+                jaVoice = voices.find(v => v.lang.includes('ja') && (v.name.includes('Female') || v.name.includes('女') || v.name.includes('Kyoko') || v.name.includes('Hattori') || v.name.includes('Nanami')));
+            }
+            // 3. それでもなければ、最初に見つかった日本語音声にする
+            if (!jaVoice) {
+                jaVoice = voices.find(v => v.lang.includes('ja')); 
+            }
+
+            if (jaVoice) {
+                utterance.voice = jaVoice;
+            }
+
+            synth.speak(utterance);
+        }
+
+        // ブラウザロード時に音声をロードしておく
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = () => synth.getVoices();
+        }
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock was released');
+                    });
+                }
+            } catch (err) {
+                console.log(`${err.name}, ${err.message}`);
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release()
+                    .then(() => { wakeLock = null; });
+            }
+        }
+
+        function startTimerSession() {
+            let minutes = parseInt(customTimeInput.value);
+            if (isNaN(minutes) || minutes < 1 || minutes > 30) {
+                alert("1から30の間の数値を入力してください。");
+                return;
+            }
+
+            focusTimeSeconds = minutes * 60;
+            
+            // UIの切り替え
+            setupScreen.classList.add('hidden');
+            timerScreen.classList.remove('hidden');
+            
+            // 画面スリープ防止
+            requestWakeLock();
+
+            // ユーザーアクションをトリガーに音声を初期化（iOSなどの制限回避）
+            speak("準備時間、30秒です。");
+
+            startPhase('PREP', PREP_SECONDS);
+        }
+
+        function startPhase(phase, durationSeconds) {
+            currentPhase = phase;
+            totalPhaseSeconds = durationSeconds;
+            targetEndTime = Date.now() + (durationSeconds * 1000);
+            lastAnnouncedSecond = -1;
+            isPaused = false; // フェーズ開始時に一時停止状態をリセット
+
+            // UIの更新
+            if (phase === 'PREP') {
+                phaseLabel.textContent = "準備時間";
+                phaseLabel.className = "text-2xl font-bold text-yellow-500 tracking-widest";
+                phaseDesc.textContent = "呼吸を整えて準備してください";
+                progressRing.setAttribute('stroke', '#eab308'); // yellow
+            } else if (phase === 'FOCUS') {
+                phaseLabel.textContent = "集中時間";
+                phaseLabel.className = "text-2xl font-bold text-blue-500 tracking-widest";
+                phaseDesc.textContent = "設定した時間、集中しましょう";
+                progressRing.setAttribute('stroke', '#3b82f6'); // blue
+                speak("開始");
+            } else if (phase === 'COOLDOWN') {
+                phaseLabel.textContent = "クールダウン";
+                phaseLabel.className = "text-2xl font-bold text-green-500 tracking-widest";
+                phaseDesc.textContent = "ゆっくり深呼吸してください";
+                progressRing.setAttribute('stroke', '#22c55e'); // green
+                speak("終了時間です。クールダウン、30秒です。");
+            }
+
+            updateDisplay(durationSeconds);
+            
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(tick, 100); // 100msごとにチェックして精度を上げる
+        }
+
+        function tick() {
+            const now = Date.now();
+            let timeLeftExact = (targetEndTime - now) / 1000;
+            
+            if (timeLeftExact <= 0) {
+                timeLeftExact = 0;
+            }
+
+            const timeLeftSeconds = Math.ceil(timeLeftExact);
+
+            updateDisplay(timeLeftSeconds);
+
+            // 残り秒数が変わった時だけアナウンス処理を実行
+            if (timeLeftSeconds !== lastAnnouncedSecond) {
+                lastAnnouncedSecond = timeLeftSeconds;
+                handleAnnouncements(timeLeftSeconds);
+            }
+
+            // フェーズ終了時
+            if (timeLeftExact <= 0) {
+                clearInterval(timerInterval);
+                if (currentPhase === 'PREP') {
+                    startPhase('FOCUS', focusTimeSeconds);
+                } else if (currentPhase === 'FOCUS') {
+                    startPhase('COOLDOWN', COOLDOWN_SECONDS);
+                } else if (currentPhase === 'COOLDOWN') {
+                    finishSession();
+                }
+            }
+        }
+
+        function handleAnnouncements(timeLeft) {
+            if (currentPhase !== 'FOCUS') return;
+
+            const halfTime = Math.floor(focusTimeSeconds / 2);
+
+            // アナウンス条件
+            // 半分経過 (設定時間が2分=120秒以上の時のみ有効にすると自然)
+            if (timeLeft === halfTime && focusTimeSeconds >= 120) {
+                speak("半分の時間が経過しました。");
+            }
+            
+            // 残り10分 (設定時間が10分より長い場合)
+            if (timeLeft === 600 && focusTimeSeconds > 600) {
+                speak("残り、10分です。");
+            }
+            
+            // 残り5分
+            if (timeLeft === 300 && focusTimeSeconds > 300) {
+                speak("残り、5分です。");
+            }
+            
+            // 残り3分
+            if (timeLeft === 180 && focusTimeSeconds > 180) {
+                speak("残り、3分です。");
+            }
+            
+            // 残り1分
+            if (timeLeft === 60 && focusTimeSeconds > 60) {
+                speak("残り、1分です。");
+            }
+            
+            // 終了10秒前
+            if (timeLeft === 10) {
+                speak("10秒前");
+            }
+            
+            // 終了3秒前
+            if (timeLeft === 3) {
+                speak("3秒前");
+            }
+        }
+
+        function updateDisplay(timeLeft) {
+            // 時間テキストの更新
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            timeDisplay.textContent = `${m}:${s}`;
+
+            // プログレスリングの更新
+            const progress = timeLeft / totalPhaseSeconds;
+            const dashoffset = ringCircumference * (1 - progress);
+            progressRing.setAttribute('stroke-dashoffset', dashoffset);
+        }
+
+        function finishSession() {
+            speak("すべて終了しました。お疲れ様でした。");
+            
+            // タイマー画面を隠し、終了画面を表示
+            timerScreen.classList.add('hidden');
+            finishScreen.classList.remove('hidden');
+            
+            // 画面スリープ防止を解除
+            releaseWakeLock();
+            
+            // 紙吹雪アニメーションをトリガー
+            triggerConfetti();
+        }
+
+        function triggerConfetti() {
+            const duration = 3000; // 3秒間降らせる
+            const end = Date.now() + duration;
+
+            (function frame() {
+                // 左端から
+                confetti({
+                    particleCount: 5,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: ['#3b82f6', '#eab308', '#22c55e', '#ef4444', '#a855f7']
+                });
+                // 右端から
+                confetti({
+                    particleCount: 5,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: ['#3b82f6', '#eab308', '#22c55e', '#ef4444', '#a855f7']
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+
+        function stopTimer() {
+            speak("タイマーを終了します。");
+            resetApp();
+        }
+
+        function togglePause() {
+            const pauseBtn = document.getElementById('pause-btn');
+            
+            if (isPaused) {
+                // 再開処理
+                isPaused = false;
+                targetEndTime = Date.now() + pausedTimeLeftMs;
+                timerInterval = setInterval(tick, 100);
+                
+                // ボタンの見た目を戻す
+                pauseBtn.textContent = "一時停止";
+                pauseBtn.className = "w-32 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 text-lg font-semibold py-4 rounded-full transition-colors";
+                
+                // リングの色をフェーズごとに戻す
+                if (currentPhase === 'PREP') progressRing.setAttribute('stroke', '#eab308');
+                else if (currentPhase === 'FOCUS') progressRing.setAttribute('stroke', '#3b82f6');
+                else if (currentPhase === 'COOLDOWN') progressRing.setAttribute('stroke', '#22c55e');
+                
+                speak("再開します");
+            } else {
+                // 一時停止処理
+                isPaused = true;
+                clearInterval(timerInterval);
+                pausedTimeLeftMs = targetEndTime - Date.now();
+                if (pausedTimeLeftMs < 0) pausedTimeLeftMs = 0;
+                
+                // ボタンの見た目を強調
+                pauseBtn.textContent = "再開";
+                pauseBtn.className = "w-32 bg-blue-900/60 text-blue-300 border border-blue-700 hover:bg-blue-800/60 text-lg font-semibold py-4 rounded-full transition-colors";
+                
+                // 一時停止中はリングをグレーにして停止状態をわかりやすくする
+                progressRing.setAttribute('stroke', '#4b5563'); 
+                
+                speak("一時停止しました");
+            }
+        }
+
+        function resetApp() {
+            if (timerInterval) clearInterval(timerInterval);
+            currentPhase = 'IDLE';
+            isPaused = false;
+            releaseWakeLock();
+            
+            // 一時停止ボタンの見た目リセット
+            const pauseBtn = document.getElementById('pause-btn');
+            if (pauseBtn) {
+                pauseBtn.textContent = "一時停止";
+                pauseBtn.className = "w-32 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 text-lg font-semibold py-4 rounded-full transition-colors";
+            }
+            
+            // UIを元に戻す
+            timerScreen.classList.add('hidden');
+            finishScreen.classList.add('hidden'); // 終了画面も隠す
+            setupScreen.classList.remove('hidden');
+            
+            // リングリセット
+            progressRing.setAttribute('stroke-dashoffset', 0);
+        }
+    </script>
+</body>
+</html>
